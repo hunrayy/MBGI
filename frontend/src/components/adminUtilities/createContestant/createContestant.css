@@ -1,0 +1,279 @@
+/* Page container */
+.create-contestant-page {
+  padding: 1rem;
+  font-family: 'Arial', sans-serif;
+  /* background-color: #f9f9f9;  */
+  min-height: 100vh;
+  color: #111; /* Dark text for contrast */
+}
+
+/* Breadcrumb */
+.bread-crumb {
+  margin-bottom: 1.5rem;
+}
+
+.dashboard-title {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.breadcrumb-path {
+  color: #555;
+}
+
+/* Form container */
+.contestant-form {
+  background: #fff; /* White form background */
+  border-radius: 20px;
+  padding: 2rem;
+  max-width: 600px;
+  margin: 0 auto;
+  box-shadow: 0 0 25px rgba(255, 105, 180, 0.2); /* Soft pink glow */
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  border: 1px solid rgba(255, 105, 180, 0.3); /* subtle pink border */
+}
+
+/* Crown icon */
+.form-crown-wrapper {
+  font-size: 3rem;
+  color: #ff1493; /* Pink crown for contrast */
+  text-shadow: 0 0 10px rgba(255, 105, 180, 0.8),
+               0 0 20px rgba(255, 105, 180, 0.5);
+  animation: crownGlow 2s infinite alternate;
+  margin-bottom: 1rem;
+}
+
+/* Heading */
+.form-title {
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+  margin-bottom: 0.5rem;
+  color: #333;
+}
+
+.form-underline {
+  width: 100%;
+  margin: 0.5rem auto 1.5rem auto;
+  border: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #ff1493, #ff6ec7);
+  border-radius: 2px;
+}
+
+/* Form groups */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  gap: 0.5rem;
+}
+
+.form-group label {
+  font-weight: 500;
+  color: #555;
+}
+
+/* Inputs and textarea */
+.form-group input,
+.form-group textarea {
+  padding: 0.8rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(200, 200, 200, 0.7);
+  background: #fefefe; /* Light input background */
+  color: #111;
+  outline: none;
+  transition: all 0.3s ease;
+}
+
+.form-group input::placeholder,
+.form-group textarea::placeholder {
+  color: #aaa;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+  border: 1px solid #ff6ec7; /* Gradient accent on focus */
+  box-shadow: 0 0 15px rgba(255, 105, 180, 0.3);
+}
+
+/* Submit button */
+.submit-btn {
+  background: linear-gradient(90deg, #ff1493, #ff6ec7);
+  color: #fff;
+  border: none;
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  border-radius: 30px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: all 0.3s ease;
+  box-shadow: 0 0 20px rgba(255, 105, 180, 0.4);
+}
+
+.submit-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 25px rgba(255, 105, 180, 0.7),
+              0 0 45px rgba(255, 105, 180, 0.5);
+}
+
+/* Crown glow animation */
+@keyframes crownGlow {
+  from {
+    text-shadow: 0 0 10px rgba(255, 105, 180, 0.7),
+                 0 0 20px rgba(255, 105, 180, 0.4);
+  }
+  to {
+    text-shadow: 0 0 20px rgba(255, 182, 193, 0.9),
+                 0 0 40px rgba(255, 182, 193, 0.6);
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .contestant-form {
+    padding: 1.5rem;
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+/* Preview Modal */
+.preview-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 200;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+/* Modal card */
+.preview-modal-card {
+  background: #fff;
+  border-radius: 20px;
+  padding: 2rem;
+  width: 90%;
+  max-width: 400px;
+  text-align: center;
+  box-shadow: 0 0 25px rgba(255, 105, 180, 0.4);
+  position: relative;
+}
+
+/* Close button */
+.close-modal-btn {
+  position: absolute;
+  top: 12px;
+  right: 18px;
+  background: transparent;
+  font-size: 2rem;
+  border: none;
+  cursor: pointer;
+  color: #ff1493;
+  transition: color 0.3s;
+}
+
+.close-modal-btn:hover {
+  color: #ff6ec7;
+}
+
+/* Preview card content */
+.preview-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+}
+
+.preview-image {
+  width: 180px;
+  height: 180px;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 3px solid #ff6ec7;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+.arrow-box {
+    position: relative;
+    background-color: #800080;
+    color: white;
+    padding: 10px;
+    width: 300px;
+    height: 50px;
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-weight: 500;
+    animation-name: arrow-box;
+    animation-duration: 5s;
+    position: fixed;
+    /* top: 40vh; */
+    top: 100px;
+    left: -400px;
+    z-index: 2;
+  }
+  @keyframes arrow-box {
+    0%{left: -400px;}
+    20%{left: 20vw;}
+    80%{left: 20vw;}
+    100%{left: -400px;}
+  }
+  
+  
+  /* The arrow shape on the left */
+  .arrow-box::before {
+    content: '';
+    position: absolute;
+    left: -20px; /* This moves the arrow outside the box */
+    top: 50%; /* Vertically center the arrow */
+    transform: translateY(-50%);
+    border-width: 10px;
+    border-style: solid;
+    border-color: transparent #800080 transparent transparent; /* Create the arrow */
+  }
+  
+
+
+
+
+
+
+
