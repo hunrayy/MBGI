@@ -39,6 +39,7 @@ export default function FirstLandingPage() {
         loop
         playsInline
         preload="auto"
+        poster="/crownImage.jpg"
         onCanPlayThrough={() => setVideoLoaded(true)}
         style={{
           position: "absolute",
@@ -79,7 +80,7 @@ export default function FirstLandingPage() {
       >
         <div className="first-landing-page-wrapper">
             <h1 className="display-2 fw-bold">VOTE FOR YOUR  FAVORITE</h1>
-            <h2 className="display-3 fw-bold" style={{color: "pink"}}>Most Beautiful Girl In Iba CONTESTANT</h2>
+            <h2 className="display-3 fw-bold" style={{color: "#D4AF37"}}>Most Beautiful Girl In Iba CONTESTANT</h2>
             <p className="display-7 mb-4 fw-bold">
             Have your say! Vote for the participant you think should win this remarkable contest.
             </p>
