@@ -54,7 +54,7 @@ Route::get('/get-single-product', [ProductController::class, 'getSingleProduct']
 Route::get('/search-products', [ProductController::class, 'searchProducts']);
 Route::get('/get-number-of-days-of-delivery', [AuthController::class, 'getNumberOfDaysOfDelivery'])->middleware(VerifyJWTToken::class);
 Route::post('/flutterwave/generate-token-for-payment', [PaymentController::class, 'generateTokenForPayment'])->middleware(VerifyJWTToken::class);
-Route::post('/flutterwave/new-payment-webhook', [PaymentController::class, 'flutterwavePaymentWebhook'])->middleware(VerifyJWTToken::class);
+// Route::post('/flutterwave/new-payment-webhook', [PaymentController::class, 'flutterwavePaymentWebhook'])->middleware(VerifyJWTToken::class);
 Route::post('/flutterwave/make-payment', [PaymentController::class, 'makePayment'])->middleware(VerifyJWTToken::class);
 // Route::post('/paystack/make-payment', [PaystackPaymentController::class, 'makePayment'])->middleware(VerifyJWTToken::class);
 Route::get('/flutterwave/validate-payment', [PaymentController::class, 'validatePayment'])->middleware(VerifyJWTToken::class);
@@ -66,7 +66,7 @@ Route::post('/reset-password', [UserPasswordResetController::class, 'resetPasswo
 Route::get('/get-user-orders', [AuthController::class, 'getUserOrders'])->middleware(VerifyJWTToken::class);
 Route::post('/send-feedback', [AuthController::class, 'sendFeedback']);
 Route::get('/user/get-page', [GetPagesController::class, 'index']);
-Route::get('/get-product-details', [productController::class, 'getProductDetails']);
+Route::get('/get-product-details', [ProductController::class, 'getProductDetails']);
 Route::get('/track-order', [OrderController::class, 'trackOrder']);
 
 
@@ -77,6 +77,9 @@ Route::get('/track-order', [OrderController::class, 'trackOrder']);
 
 
 Route::get('/get-all-contestants', [ContestantController::class, 'getAllContestants']);
+Route::post('generate-dynamic-account-number', [PaymentController::class, 'generateAccountNumber']);
+Route::post('/paystack/new-payment-webhook', [PaymentController::class, 'paystackPaymentWebhook']);
+
 
 
 

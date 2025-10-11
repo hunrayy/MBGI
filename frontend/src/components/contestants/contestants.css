@@ -125,3 +125,135 @@
 .name-black {
   color: #000;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* 🩶 Clean Dark Skeleton Loader (Unified Shimmer Style) */
+
+.skeleton-card {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  min-height: 480px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+/* Base Shimmer Gradient */
+@keyframes shimmer {
+  0% {
+    background-position: -400% 0;
+  }
+  100% {
+    background-position: 400% 0;
+  }
+}
+
+/* Unified Placeholder Style */
+.skeleton-image,
+.skeleton-name,
+.skeleton-number,
+.skeleton-divider,
+.skeleton-vote-box,
+.skeleton-vote-number,
+.skeleton-vote-text,
+.skeleton-button {
+  background: linear-gradient(
+    90deg,
+    #1a1a1a 25%,
+    #2a2a2a 50%,
+    #1a1a1a 75%
+  );
+  background-size: 400% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+
+/* Image Placeholder */
+.skeleton-image {
+  width: 100%;
+  height: 250px;
+  border-radius: 20px 20px 0 0;
+}
+
+/* Name + Number placeholders */
+.skeleton-name {
+  width: 60%;
+  height: 28px;
+  margin: 1.3rem auto 0.6rem;
+}
+
+.skeleton-number {
+  width: 30%;
+  height: 28px;
+  margin: 0 auto 1rem;
+  margin-top: 20px;
+}
+
+.skeleton-divider {
+  width: 90%;
+  height: 2px;
+  border-radius: 1px;
+  margin: 0.5rem auto 1rem;
+}
+
+/* Vote Box Placeholder */
+.skeleton-vote-box {
+  width: 80%;
+  margin: auto;
+  padding: 25px 0;
+  border-radius: 10px;
+}
+
+.skeleton-vote-number {
+  width: 40%;
+  height: 24px;
+  margin: 0 auto 8px;
+}
+
+.skeleton-vote-text {
+  width: 25%;
+  height: 14px;
+  margin: auto;
+}
+
+/* Button Placeholder */
+.skeleton-button {
+  width: 60%;
+  height: 45px;
+  border-radius: 25px;
+  margin: 1.2rem auto 1.5rem;
+}
+

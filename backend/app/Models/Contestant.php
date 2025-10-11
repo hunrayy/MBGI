@@ -5,35 +5,43 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use App\Models\Vote;
+
 
 
 class Contestant extends Model
 {
     use HasFactory;
-    protected $table = 'contestants'; // This ensures the model uses the 'contestants' table
+
+    protected $table = 'contestants';
 
     protected $fillable = [
-        'fullname',
-        'contestant_number',
-        'bio',
-        'image',
+        'fullname',           // contestant name
+        'contestant_number',  // unique number
+        'image',              // image URL/path
     ];
 
-    
-
-    //override the getIncrementing method
+    // Primary key is a UUID string
     public $incrementing = false;
-
-    //set the key type to string
     protected $keyType = 'string';
-    
-    // Automatically create a UUID when inserting
+
+    // Auto-generate UUID for primary key
     protected static function boot()
     {
         parent::boot();
 
         static::creating(function ($model) {
-            $model->id = (string) Str::uuid();
+            if (!$model->id) {
+                $model->id = (string) Str::uuid();
+            }
         });
+    }
+
+    /**
+     * Contestant has many votes
+     */
+    public function votes()
+    {
+        return $this->hasMany(Vote::class, 'contestant_number', 'contestant_number');
     }
 }

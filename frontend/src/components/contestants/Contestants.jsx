@@ -1,7 +1,4 @@
 
-
-
-
 import './contestants.css'
 import { useNavigate } from 'react-router-dom';
 import image from "../../../public/testContestantImage.jpeg"
@@ -9,123 +6,29 @@ import { useContestants } from './useContestants';
 
 
 const Contestants = ({adminDashboard}) => {
-  const navigate = useNavigate()
-  // const { data: contestants, isLoading, isError, error } = useContestants();
-const contestants = [
-  {
-    id: 1,  
-    fullname: "Chiamaka Johnson",
-    image: image,
-    bio: "Confident, elegant, and passionate about women empowerment.",
-    contestant_number: 1,
-    votes: 2
-  },
-  {
-    id: 2,  
-    fullname: "Zainab Musa",
-    image: image,
-    bio: "A creative soul who loves art, culture, and inspiring others.",
-    contestant_number: 2,
-    votes: 4
-  },
-  {
-    id: 3,  
-    fullname: "Ifeoma Okafor",
-    image: image,
-    bio: "Ambitious and kind-hearted, aiming to make positive change.",
-    contestant_number: 3,
-    votes: 7
-  },
-  {
-    id: 4,
-    fullname: "Amara Bello",
-    image: image,
-    bio: "Energetic and charismatic, always leading by example.",
-    contestant_number: 4,
-    votes: 3
-  },
-  {
-    id: 5,
-    fullname: "Funke Adeyemi",
-    image: image,
-    bio: "Passionate about community service and uplifting others.",
-    contestant_number: 5,
-    votes: 5
-  },
-  {
-    id: 6,
-    fullname: "Ngozi Eze",
-    image: image,
-    bio: "Determined and resilient, never afraid of challenges.",
-    contestant_number: 6,
-    votes: 6
-  },
-  {
-    id: 7,
-    fullname: "Halima Yusuf",
-    image: image,
-    bio: "Creative thinker with a love for innovation and culture.",
-    contestant_number: 7,
-    votes: 8
-  },
-  {
-    id: 8,
-    fullname: "Aisha Abdullahi",
-    image: image,
-    bio: "Friendly, inspiring, and committed to making a difference.",
-    contestant_number: 8,
-    votes: 2
-  },
-  {
-    id: 9,
-    fullname: "Blessing Nwankwo",
-    image: image,
-    bio: "Optimistic and hardworking, always striving for excellence.",
-    contestant_number: 9,
-    votes: 9
-  }
-];
-
-  
-
-
-  // if (isLoading) return <p>Loading contestants...</p>;
-  // if (isError) return <p className='alert alert-danger'>Failed to load contestants</p>;
-
+  const navigate = useNavigate()  
+  const { data: contestants, isLoading, isError, error } = useContestants();
+  // const { data: contestants,  isError, error } = useContestants();
+// const isLoading = true;
+if (isLoading) {
   return (
-    <div className="contestants-container">
-
+    <div className="contestants-container" style={{width: "100%"}}>
       <div className="contestants-flex">
-        {contestants.map((contestant) => (
-          <div key={contestant.id} className="contestant-card">
-            <div className="contestant-image-wrapper">
-              <img src={contestant.image} alt={contestant.name} className="contestant-image" />
-            </div>
+        {[...Array(6)].map((_, i) => (
+          <div key={i} className="contestant-card skeleton-card">
+            <div className="skeleton-image"></div>
+
             <div className="contestant-details">
-              <h3 className={`contestant-name ${adminDashboard ? "name-black" : ""}`}>{contestant.fullname}</h3>
-              <p className={`contestant-desc ${adminDashboard ? "text-dark" : ""}`}>
-                Contestant Number {String(contestant.contestant_number).padStart(2, "0")}
-              </p>
+              <div className="skeleton-name"></div>
+              <div className="skeleton-number"></div>
+              <div className="contestant-divider skeleton-divider"></div>
 
-              <p className={`contestant-desc ${adminDashboard ? "text-muted" : ""}`}>{contestant.bio}</p>
-
-              {/* ✨ Underline Divider */}
-              <div className="contestant-divider text-muted"></div>
-
-              {/* 🗳️ Vote Count */}
-              <div className="vote-count">
-                <span><span className="display-5 fw-bold text-center">{contestant.votes.toLocaleString()}</span> <br /> <span style={{color: "#ddd"}}>Votes</span></span>
-                {/* <span><span className="display-5 fw-bold text-center">0</span> <br /> <span style={{color: "#ddd"}}>Votes</span></span> */}
+              <div className="skeleton-vote-box">
+                <div className="skeleton-vote-number"></div>
+                <div className="skeleton-vote-text"></div>
               </div>
 
-              {/* 🌟 Vote Button */}
-              {
-              !adminDashboard &&
-              <button className="vote-btn"   onClick={() => {
-                const slug = contestant.fullname.toLowerCase().replace(/\s+/g, "-"); // convert "John Doe" → "john-doe"
-                navigate(`/vote-for/${slug}`);
-              }}>Vote Now $200</button>
-              }
+              <div className="skeleton-button"></div>
             </div>
           </div>
         ))}
@@ -134,7 +37,115 @@ const contestants = [
   );
 }
 
+
+  if (isError) return <p className='alert alert-danger'>Failed to load contestants</p>;
+
+  return (
+    <div className="contestants-container">
+  <div className="contestants-flex">
+    {contestants
+      .slice() // ✅ create a shallow copy so we don’t mutate React Query cache
+      .sort((a, b) => {
+        // Sort by total_votes descending first
+        if (b.total_votes !== a.total_votes) {
+          return b.total_votes - a.total_votes;
+        }
+        // If votes are equal, sort by fullname alphabetically (case-insensitive)
+        return a.fullname.localeCompare(b.fullname, undefined, { sensitivity: "base" });
+      })
+      .map((contestant) => (
+        <div key={contestant.id} className="contestant-card">
+          <div className="contestant-image-wrapper">
+            <img src={contestant.image} alt={contestant.name} className="contestant-image" />
+          </div>
+
+          <div className="contestant-details">
+            <h3 className={`contestant-name ${adminDashboard ? "name-black" : ""}`}>
+              {contestant.fullname}
+            </h3>
+
+            <p
+              className={`contestant-desc ${adminDashboard ? "text-dark" : ""}`}
+              style={{ fontFamily: "'Orbitron', sans-serif", fontSize: "20px" }}
+            >
+              {String(contestant.contestant_number).padStart(2, "0")}
+            </p>
+
+            <div className="contestant-divider text-muted"></div>
+
+            <div className="vote-count">
+              <span>
+                <span className="display-5 fw-bold text-center">
+                  {contestant.total_votes.toLocaleString()}
+                </span>
+                <br />
+                <span style={{ color: "#ddd" }}>Votes</span>
+              </span>
+            </div>
+
+            {!adminDashboard && (
+              <button
+                className="vote-btn"
+                onClick={() => {
+                  const slug = contestant.fullname.toLowerCase().replace(/\s+/g, "-");
+                  navigate(`/vote-for/${slug}/contestant-number/${contestant.contestant_number}`, {
+                    state: { contestant },
+                  });
+                }}
+              >
+                Vote Now ₦100
+              </button>
+            )}
+          </div>
+        </div>
+      ))}
+  </div>
+</div>
+
+  );
+}
+
 export default Contestants;
+              
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -151,42 +162,40 @@ export default Contestants;
 // const Contestants = ({adminDashboard}) => {
 //   const navigate = useNavigate()  
 //   const { data: contestants, isLoading, isError, error } = useContestants();
-  // const contestants = [
-  //   {
-  //     id: 1,  
-  //     name: "Chiamaka Johnson",
-  //     // image: "https://www.vote.missonenigeria.com/storage/contestants/1758742129_precious-mohammed.jpeg",
-  //     image: image,
-  //     description: "Confident, elegant, and passionate about women empowerment.",
-  //     votes: 2
-  //   },
-  //   {
-  //     id: 2,  
-  //     name: "Zainab Musa",
-  //     // image: "https://www.vote.missonenigeria.com/storage/contestants/1758677512_angela-ozalagba.jpeg",
-  //     image: image,
-  //     description: "A creative soul who loves art, culture, and inspiring others.",
-  //     votes: 4
-  //   },
-  //   {
-  //     id: 3,  
-  //     name: "Ifeoma Okafor",
-  //     // image: "https://www.vote.missonenigeria.com/storage/contestants/1758740341_ayomide-adegbeola.jpeg",
-  //     image: image,
-  //     description: "Ambitious and kind-hearted, aiming to make positive change.",
-  //     votes: 7
-  //   }
-  // ];
+//   // const { data: contestants,  isError, error } = useContestants();
+// // const isLoading = true;
+// if (isLoading) {
+//   return (
+//     <div className="contestants-container" style={{width: "100%"}}>
+//       <div className="contestants-flex">
+//         {[...Array(6)].map((_, i) => (
+//           <div key={i} className="contestant-card skeleton-card">
+//             <div className="skeleton-image"></div>
 
-//   if (isLoading) return <p>Loading contestants...</p>;
+//             <div className="contestant-details">
+//               <div className="skeleton-name"></div>
+//               <div className="skeleton-number"></div>
+//               <div className="contestant-divider skeleton-divider"></div>
+
+//               <div className="skeleton-vote-box">
+//                 <div className="skeleton-vote-number"></div>
+//                 <div className="skeleton-vote-text"></div>
+//               </div>
+
+//               <div className="skeleton-button"></div>
+//             </div>
+//           </div>
+//         ))}
+//       </div>
+//     </div>
+//   );
+// }
+
+
 //   if (isError) return <p className='alert alert-danger'>Failed to load contestants</p>;
 
 //   return (
 //     <div className="contestants-container">  
-//       {/* <h1 className="display-5 fw-bold text-center">MEET THE CONTESTANTS</h1>
-//       <p className="mb-4" style={{fontSize: "20px", textAlign: "center", fontWeight: "600", color: "#aaa"}}>
-//         Vote for your favorite and help them win the crown
-//       </p> */}
 
 //       <div className="contestants-flex">
 //         {contestants.map((contestant) => (
@@ -196,28 +205,31 @@ export default Contestants;
 //             </div>
 //             <div className="contestant-details">
 //               <h3 className={`contestant-name ${adminDashboard ? "name-black" : ""}`}>{contestant.fullname}</h3>
-//               <p className={`contestant-desc ${adminDashboard ? "text-dark" : ""}`}>
+//               {/* <p className={`contestant-desc ${adminDashboard ? "text-dark" : ""}`}>
 //                 Contestant Number {String(contestant.contestant_number).padStart(2, "0")}
+//               </p> */}
+//               <p className={`contestant-desc ${adminDashboard ? "text-dark" : ""}`} style={{fontFamily: "'Orbitron', sans-serif", fontSize: "20px"}}>
+//                 {String(contestant.contestant_number).padStart(2, "0")}
 //               </p>
 
-//               <p className={`contestant-desc ${adminDashboard ? "text-muted" : ""}`}>{contestant.bio}</p>
+//               {/* <p className={`contestant-desc ${adminDashboard ? "text-muted" : ""}`}>{contestant.bio}</p> */}
 
 //               {/* ✨ Underline Divider */}
 //               <div className="contestant-divider text-muted"></div>
 
 //               {/* 🗳️ Vote Count */}
 //               <div className="vote-count">
-//                 {/* <span><span className="display-5 fw-bold text-center">{contestant.votes.toLocaleString()}</span> <br /> <span style={{color: "#ddd"}}>Votes</span></span> */}
-//                 <span><span className="display-5 fw-bold text-center">0</span> <br /> <span style={{color: "#ddd"}}>Votes</span></span>
+//                 <span><span className="display-5 fw-bold text-center">{contestant.total_votes.toLocaleString()}</span> <br /> <span style={{color: "#ddd"}}>Votes</span></span>
+//                 {/* <span><span className="display-5 fw-bold text-center">0</span> <br /> <span style={{color: "#ddd"}}>Votes</span></span> */}
 //               </div>
 
 //               {/* 🌟 Vote Button */}
 //               {
 //               !adminDashboard &&  
 //               <button className="vote-btn"   onClick={() => {
-//                 const slug = contestant.name.toLowerCase().replace(/\s+/g, "-"); // convert "John Doe" → "john-doe"  
-//                 navigate(`/vote-for/${slug}`);
-//               }}>Vote Now $200</button>
+//                 const slug = contestant.fullname.toLowerCase().replace(/\s+/g, "-"); // convert "John Doe" → "john-doe"  
+//                 navigate(`/vote-for/${slug}/contestant-number/${contestant.contestant_number}`, {state: { contestant }});
+//               }}>Vote Now ₦100</button>
 //               }
 //             </div>
 //           </div>
@@ -228,23 +240,3 @@ export default Contestants;
 // }
 
 // export default Contestants;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

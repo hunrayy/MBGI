@@ -85,7 +85,7 @@ export default function FirstLandingPage() {
             Have your say! Vote for the participant you think should win this remarkable contest.
             </p>
             <div className="vote-price">
-                Vote Price: $200
+                Vote Price: ₦100
             </div>
         </div>
       </div>

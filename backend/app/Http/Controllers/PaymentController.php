@@ -10,16 +10,520 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Carbon\Carbon;
 
 use App\Models\User;
 use App\Models\Transaction;
 use App\Models\UnprocessedPayments;
 use App\Models\FailedTransactions;
+use App\Models\Vote;
+use Illuminate\Support\Facades\Cache;
 
 
 class PaymentController extends Controller
 {
     //
+
+
+public function generateAccountNumber(Request $request)
+{
+    // 1️⃣ Validate input
+    $validated = $request->validate([
+        'fullName' => 'required|string',
+        'email' => 'required|email',
+        'numberOfVotes' => 'required|integer|min:1',
+        'contestantName' => 'required|string',
+        'contestantNumber' => 'required|string',
+    ]);
+
+    $voterFullname = $validated['fullName'];
+    $voterEmail = $validated['email'];
+    $numberOfVotes = $validated['numberOfVotes'];
+    $contestantName = $validated['contestantName'];
+    $contestantNumber = $validated['contestantNumber'];
+
+    $amountInNaira = $numberOfVotes * 100;
+    $amountInKobo = intval($amountInNaira * 100);
+
+    // 2️⃣ Metadata for tracking
+    $meta = [
+        'voterFullname' => $voterFullname,
+        'voterEmail' => $voterEmail,
+        'contestantName' => $contestantName,
+        'contestantNumber' => $contestantNumber,
+    ];
+
+    try {
+        $reference = 'VOTE-' . Str::upper(Str::random(10));
+        $paystackSecret = env('PAYSTACK_SECRET_KEY');
+
+        // 3️⃣ Initialize transaction for BANK TRANSFER
+        $response = Http::withToken($paystackSecret)
+            ->post('https://api.paystack.co/transaction/initialize', [
+                'amount' => $amountInKobo,
+                'email' => $voterEmail,
+                'reference' => $reference,
+                'channels' => ['bank_transfer'], // 👈 This makes Paystack return a temp bank account
+                'metadata' => $meta,
+                // ❌ No 'amount' key since user decides how much to pay
+            ]);
+        $resData = $response->json();
+
+        // 4️⃣ Handle API errors
+        if (!$response->successful() || !$resData['status']) {
+        return $resData;
+            Log::error('Paystack Error', ['response' => $resData]);
+            return response()->json([
+                'code' => 'error',
+                'message' => $resData['message'] ?? 'Failed to initialize transfer',
+            ]);
+        }
+
+        $data = $resData['data'];
+
+        // 5️⃣ Return bank transfer info to frontend
+        return response()->json([
+            'code' => 'success',
+            'message' => 'Transfer account generated successfully',
+            'data' => [
+                'reference' => $reference,
+                'amount' => $amountInKobo,
+                'authorization_url' => $data['authorization_url'], // not needed, but available
+                'bank' => $data['bank'] ?? null,
+                'accountName' => $data['bank']['account_name'] ?? 'Paystack Temporary Account',
+                'accountNumber' => $data['bank']['account_number'] ?? null,
+                'bankName' => $data['bank']['bank_name'] ?? null,
+                'expiresAt' => $data['bank']['expiry_date'] ?? null,
+            ],
+        ]);
+
+    } catch (\Exception $e) {
+        Log::error('generateAccountNumber Error', ['error' => $e->getMessage()]);
+        return response()->json([
+            'code' => 'error',
+            'message' => 'Server error generating bank transfer account',
+        ], 500);
+    }
+}
+
+
+
+public function paystackPaymentWebhook(Request $request)
+{
+    // 1️⃣ Verify that the request is from Paystack
+    $signature = $request->header('x-paystack-signature');
+    $secret = env('PAYSTACK_SECRET_KEY'); // set this in .env
+
+    $computedSignature = hash_hmac('sha512', $request->getContent(), $secret);
+
+    if ($signature !== $computedSignature) {
+        Log::warning('Paystack webhook verification failed.', ['request' => $request->all()]);
+        return response()->json(['status' => 'error', 'message' => 'Invalid signature'], 401);
+    }
+
+    // 2️⃣ Get the webhook payload
+    $payload = $request->all();
+    Log::info('Paystack webhook received:', $payload);
+
+    $event = $payload['event'] ?? null;
+    $data = $payload['data'] ?? [];
+
+    // 3️⃣ Check the event type
+    if ($event === 'charge.success') {
+        $status = $data['status'] ?? null;
+
+        if ($status === 'success' || $status === 'successful') {
+            // Convert paid_at to MySQL datetime
+            $paymentTime = isset($data['paid_at']) ? Carbon::parse($data['paid_at'])->format('Y-m-d H:i:s') : now();
+
+            // Customer info
+            $customer = $data['customer'] ?? [];
+            $voterFullname = trim(
+                (($customer['first_name'] ?? '') . ' ' . ($customer['last_name'] ?? ''))
+            ) ?: 'Unknown Voter';
+            $voterEmail = $customer['email'] ?? 'unknown@example.com';
+
+            // Authorization info
+            $accountNumber = $data['authorization']['account_number'] ?? null;
+            $accountName   = $data['authorization']['account_name'] ?? null;
+            $bankName      = $data['authorization']['bank'] ?? null;
+
+            $amount    = $data['amount'] ?? 0; // in Kobo
+            $currency  = $data['currency'] ?? null;
+            $reference = $data['reference'] ?? null;
+            $channel   = $data['channel'] ?? null;
+
+            // Extract contestant info from metadata.referrer
+            $referrer = $data['metadata']['referrer'] ?? '';
+            preg_match('/contestant-number\/(\d+)/', $referrer, $matches);
+            $contestantNumber = $matches[1] ?? 0;
+
+            preg_match('/vote-for\/([^\/]+)\//', $referrer, $nameMatch);
+            $contestantName = $nameMatch[1] ?? 'Unknown';
+
+            // Call processVote
+            return $this->processVote(
+                $accountNumber,
+                $bankName,
+                $accountName,
+                $amount,
+                $currency,
+                $status,
+                $reference, // flw_ref
+                $reference, // tx_ref
+                $paymentTime,
+                $voterFullname,
+                $voterEmail,
+                $contestantName,
+                $contestantNumber
+            );
+        }
+    }
+
+    return response()->json(['status' => 'ignored', 'message' => 'Event ignored']);
+}
+
+public function processVote(
+    $accountNumber,
+    $bankName,
+    $accountName,
+    $amount,
+    $currency,
+    $status,
+    $flwRef,
+    $txRef,
+    $paymentTime,
+    $voterFullname,
+    $voterEmail,
+    $contestantName,
+    $contestantNumber
+)
+{
+    // 1️⃣ Convert Kobo → Naira
+    $amountInNaira = (int)$amount / 100;
+
+    // 2️⃣ Define voting price per vote in Naira
+    $votePrice = 100;
+
+    // 3️⃣ Calculate number of votes
+    $votes = intdiv((int)$amountInNaira, $votePrice);
+
+    // 4️⃣ Insert transaction into DB
+    $transaction = Vote::create([
+        'account_number'    => $accountNumber,
+        'bank_name'         => $bankName,
+        'account_name'      => $accountName,
+        'amount'            => $amount, // store original Kobo amount
+        'currency'          => $currency,
+        'status'            => $status,
+        'flw_ref'           => $flwRef,
+        'tx_ref'            => $txRef,
+        'payment_time'      => $paymentTime,
+        'voter_fullname'    => $voterFullname,
+        'voter_email'       => $voterEmail,
+        'contestant_name'   => $contestantName,
+        'contestant_number' => $contestantNumber,
+        'votes_allocated'   => $votes,
+        'created_at'        => now(),
+        'updated_at'        => now(),
+    ]);
+
+    Cache::forget('allContestants');
+
+
+    return response()->json([
+        'status' => 'success',
+        'message' => 'Transaction processed successfully.',
+        'votes_awarded' => $votes,
+    ]);
+}
+
+
+
+
+
+//     public function generateAccountNumber(Request $request)
+// {
+//     // Validate input
+//     $validated = $request->validate([
+//         'fullName' => 'required|string',
+//         'email' => 'required|email',
+//         'contestantName' => 'required|string',
+//         'contestantNumber' => 'required|string',
+//     ]);
+
+//     $voterFullname = $validated['fullName'];
+//     $voterEmail = $validated['email'];
+//     $contestantName = $validated['contestantName'];
+//     $contestantNumber = $validated['contestantNumber'];
+
+//     $meta = [
+//         'voterFullname' => $voterFullname,
+//         'voterEmail' => $voterEmail,
+//         'contestantName' => $contestantName,
+//         'contestantNumber' => $contestantNumber,
+//     ];
+
+//     $isProduction = app()->environment('production');
+
+//     $banks = $isProduction
+//         ? ["044", "035", "101", "232"] // live banks
+//         : ["999991"]; // sandbox/test bank
+
+//     $url = "https://api.flutterwave.com/v3/virtual-account-numbers";
+//     $uniqueRef = "vote_" . uniqid();
+
+//     foreach ($banks as $bankCode) {
+//         try {
+//             $expiry = now()->addHours(1)->format('Y-m-d H:i:s'); // expires in 1 hour
+
+//             // 1️⃣ Generate Virtual Account
+//             $response = Http::withToken(env('FLUTTERWAVE_SECRET_KEY'))->post($url, [
+//                 "email" => $voterEmail,
+//                 "is_permanent" => false,
+//                 "tx_ref" => $uniqueRef,
+//                 "account_bank" => $bankCode,
+//                 "firstname" => "MBGI",
+//                 "lastname" => "",
+//                 "amount" => 1, // minimal amount for VA creation
+//                 "narration" => "Vote for $contestantName contestant number $contestantNumber",
+//                 "expiry_date" => $expiry,
+//                 "meta" => $meta,
+//                 "callback_url" => "https://jedidiah-subbranchial-lowlily.ngrok-free.dev/api/flutterwave/new-payment-webhook"
+//             ]);
+
+//             $data = $response->json('data');
+
+//             if (!$response->successful() || empty($data['account_number'])) {
+//                 continue;
+//             }
+
+//             // 2️⃣ Simulate Payment (triggers webhook)
+//             $simulateResponse = Http::withToken(env('FLUTTERWAVE_SECRET_KEY'))->post(
+//                 "https://api.flutterwave.com/v3/virtual-account-simulate-payment",
+//                 [
+//                     "account_number" => $data['account_number'],
+//                     "amount" => 3000, // voting amount
+//                     "tx_ref" => "vote_sim_" . uniqid(),
+//                     "narration" => "Vote for $contestantName contestant number $contestantNumber"
+//                 ]
+//             );
+
+//             return response()->json([
+//                 'code' => 'success',
+//                 'message' => "Virtual account created and payment simulated successfully for bank code $bankCode",
+//                 'data' => [
+//                     'bank' => $data['bank_name'] ?? ($isProduction ? null : 'Test Bank'),
+//                     'accountNumber' => $data['account_number'],
+//                     'accountName' => $data['account_name'] ?? ($isProduction ? null : 'MBGI'),
+//                     'simulateResponse' => $simulateResponse->json(),
+//                 ],
+//             ]);
+
+//         } catch (\Exception $e) {
+//             \Log::error("Bank code $bankCode failed: " . $e->getMessage());
+//             continue;
+//         }
+//     }
+
+//     return response()->json([
+//         'code' => 'error',
+//         'message' => "Unable to retrieve account number at this time. Please try again later."
+//     ]);
+// }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//     public function generateAccountNumber(Request $request)
+//     {
+
+// // $response = Http::withToken(env('FLUTTERWAVE_SECRET_KEY'))->post('https://api.flutterwave.com/v3/virtual-account-simulate-payment', [
+// //     "account_number" => "0067100155", // sandbox VA number
+// //     "amount" => 1000,
+// //     "tx_ref" => "test_sim_" . uniqid(),
+// //     "narration" => "Vote for contestant #1"
+// // ]);
+
+// // return $response;
+//         // Validate input
+//         $validated = $request->validate([
+//             'fullName' => 'required|string',
+//             'email' => 'required|email',
+//             'contestantName' => 'required|string',
+//             'contestantNumber' => 'required|string',
+//         ]);
+
+//         $voterFullname = $validated['fullName'];
+//         $voterEmail = $validated['email'];
+//         $contestantName = $validated['contestantName'];
+//         $contestantNumber = $validated['contestantNumber'];
+//         $meta = [
+//             'voterFullname' => $voterFullname,
+//             'voterEmail' => $voterEmail,
+//             'contestantName' => $contestantName,
+//             'contestantNumber' => $contestantNumber,
+//         ];
+
+//         // Determine environment
+//         $isProduction = app()->environment('production');
+
+//         // Banks array
+//         $banks = $isProduction
+//         ? [
+//             "044", // Access Bank
+//             "035", // Wema Bank
+//             "101", // Providus Bank
+//             "232", // Sterling Bank
+//         ] // live banks
+//         : ["999991"]; // sandbox/test bank
+
+//         $url = "https://api.flutterwave.com/v3/virtual-account-numbers";
+//         $uniqueRef = "vote_" . uniqid();
+
+//         foreach ($banks as $bankCode) {
+//             try {
+//                 $expiry = now()->addHours(1)->format('Y-m-d H:i:s'); // expires in 1 hour
+//                 $response = Http::withToken(env('FLUTTERWAVE_SECRET_KEY'))->post($url, [
+//                     "email" => $voterEmail,
+//                     "is_permanent" => false,
+//                     "tx_ref" => $uniqueRef,
+//                     "account_bank" => $bankCode,
+//                     // "firstname" => explode(' ', $voterFullname)[0],
+//                     // "lastname" => explode(' ', $voterFullname)[1] ?? '',
+//                     "firstname" => "MBGI",
+//                     "lastname" => "",
+//                     "amount" => 1, // minimal Naira
+//                     "narration" => "Vote for $contestantName contestant number $contestantNumber",
+//                     "expiry_date" => $expiry,
+//                     "meta" => $meta,
+//                     "callback_url" => "https://jedidiah-subbranchial-lowlily.ngrok-free.dev/api/flutterwave/new-payment-webhook"
+//                 ]);
+
+//                 $data = $response->json('data');
+
+//                 // In production, ensure all fields exist
+//                 if ($response->successful() && (
+//                     $isProduction 
+//                         ? (!empty($data['account_number']) && !empty($data['account_name']) && !empty($data['bank_name']))
+//                         : !empty($data['account_number']) // relaxed for sandbox
+//                 )) {
+//                     return response()->json([
+//                         'code' => 'success',
+//                         'message' => "Dynamic account number generated successfully using bank code $bankCode",
+//                         'data' => [
+//                             'bank' => $data['bank_name'] ?? ($isProduction ? null : 'Test Bank'),
+//                             'accountNumber' => $data['account_number'],
+//                             'accountName' => $data['account_name'] ?? ($isProduction ? null : 'MBGI'),
+//                         ],
+//                     ]);
+//                 }
+
+//             } catch (\Exception $e) {
+//                 // Log and try next bank
+//                 \Log::error("Bank code $bankCode failed: " . $e->getMessage());
+//                 continue;
+//             }
+//         }
+
+//         // If all banks fail
+//         return response()->json([
+//             'code' => 'error',
+//             'message' => "Unable to retrieve account number at this time. Please try again later."
+//         ]);
+//     }
+
+
+    // public function flutterwavePaymentWebhook(Request $request)
+    // {
+    //     // Verify that the request is from Flutterwave
+    //     $signature = $request->header('verif-hash');
+    //     $secret = env('FLUTTERWAVE_SECRET_HASH'); // set this in .env
+
+    //     if ($signature !== $secret) {
+    //         Log::warning('Flutterwave webhook verification failed.');
+    //         return response()->json(['status' => 'error', 'message' => 'Invalid signature'], 401);
+    //     }
+
+    //     $payload = $request->all();
+    //     Log::info('Flutterwave webhook received:', $payload);
+
+    //     // Check the event type
+    //     if ($payload['event'] === 'VA_PAYMENTS') {
+    //         $data = $payload['data'];
+
+    //         // Payment details
+    //         $accountNumber = $data['account_number'] ?? null;
+    //         $accountName   = $data['account_name'] ?? null; // MBGI
+    //         $amount        = $data['amount'] ?? null;
+    //         $currency      = $data['currency'] ?? null;
+    //         $status        = $data['status'] ?? null;
+    //         $meta          = $data['meta'] ?? [];
+    //         $narration     = $data['narration'] ?? null;
+    //         $txRef         = $data['tx_ref'] ?? null;
+    //         $flwRef        = $data['flw_ref'] ?? null;
+    //         $bankName      = $data['bank_name'] ?? null;
+    //         $paymentTime = $data['created_at'] ?? null; // e.g., "2025-10-09 20:44:08"
+
+
+    //         // Only process successful payments
+    //         if ($status === 'successful') {
+    //             // Example: you can now record the vote in your DB
+    //             $voterFullname = $meta['voterFullname'] ?? null;
+    //             $voterEmail = $meta['voterEmail'] ?? null;
+    //             $contestantName = $meta['contestantName'] ?? null;
+    //             $contestantNumber = $meta['contestantNumber'] ?? null;
+
+    //                 return $this->processVote(
+    //                     $accountNumber,
+    //                     $bankName,
+    //                     $accountName,
+    //                     $amount,
+    //                     $currency,
+    //                     $status,
+    //                     $flwRef,
+    //                     $txRef,
+    //                     $paymentTime,
+    //                     $voterFullname,
+    //                     $voterEmail,
+    //                     $contestantName,
+    //                     $contestantNumber,
+                       
+    //                 );
+
+    //             // Record the vote or do any business logic
+    //             Log::info("Vote received: Voter {$voterFullname} voted for {$contestantName} (Contestant #{$contestantNumber})");
+
+    //             // Optionally, store in DB
+    //             // Vote::create([...]);
+
+    //             // return response()->json(['status' => 'success', 'message' => 'Vote recorded']);
+    //         }
+    //     }
+
+    //     return response()->json(['status' => 'ignored', 'message' => 'Event ignored']);
+    // }
+
+
+
+
+
+
+
+
+
 
     public function generateTokenForPayment(Request $request){
         DB::beginTransaction();
@@ -128,50 +632,50 @@ class PaymentController extends Controller
             ]);
         }
     }
+    // public function flutterwavePaymentWebhook(Request $request)
+    // {
+    //     // Validate Flutterwave Signature
+    //     $signature = $request->header('verif-hash');
+    //     if (!$signature || $signature !== env('FLW_SECRET_HASH')) {
+    //         Log::warning('Invalid webhook signature');
+    //         return response()->json(['message' => 'Invalid signature'], 403);
+    //     }
 
-    public function flutterwavePaymentWebhook(Request $request)
-    {
-        // Validate Flutterwave Signature
-        $signature = $request->header('verif-hash');
-        if (!$signature || $signature !== env('FLW_SECRET_HASH')) {
-            Log::warning('Invalid webhook signature');
-            return response()->json(['message' => 'Invalid signature'], 403);
-        }
+    //     $payload = $request->all();
+    //     Log::info('Flutterwave Webhook received', $payload);
 
-        $payload = $request->all();
-        Log::info('Flutterwave Webhook received', $payload);
+    //     if ($payload['event'] === 'charge.completed') {
+    //         $data = $payload['data'];
 
-        if ($payload['event'] === 'charge.completed') {
-            $data = $payload['data'];
+    //         // Optional: Confirm it's actually a successful payment
+    //         if ($data['status'] === 'successful' && $data['currency'] === 'NGN') {
+    //             $tx_ref = $data['tx_ref'];
+    //             $detailsToken = $data['meta']['detailsToken'] ?? null;
 
-            // Optional: Confirm it's actually a successful payment
-            if ($data['status'] === 'successful' && $data['currency'] === 'NGN') {
-                $tx_ref = $data['tx_ref'];
-                $detailsToken = $data['meta']['detailsToken'] ?? null;
+    //             // Optional: Confirm with Flutterwave again for double security
+    //             $response = Http::timeout(10)->retry(3, 100)->withHeaders([
+    //                 'Authorization' => 'Bearer ' . env('FLUTTERWAVE_SECRET_KEY'),
+    //             ])->get("https://api.flutterwave.com/v3/transactions/{$data['id']}/verify");
 
-                // Optional: Confirm with Flutterwave again for double security
-                $response = Http::timeout(10)->retry(3, 100)->withHeaders([
-                    'Authorization' => 'Bearer ' . env('FLUTTERWAVE_SECRET_KEY'),
-                ])->get("https://api.flutterwave.com/v3/transactions/{$data['id']}/verify");
+    //             if ($response->json('status') === 'success') {
+    //                 $verified = $response->json('data');
 
-                if ($response->json('status') === 'success') {
-                    $verified = $response->json('data');
+    //                 return $this->processPayment(
+    //                     $verified['flw_ref'],
+    //                     $verified['tx_ref'],
+    //                     $verified['amount'],
+    //                     'successful',
+    //                     $verified['created_at'],
+    //                     $verified['payment_type'],
+    //                     $detailsToken
+    //                 );
+    //             }
+    //         }
+    //     }
 
-                    return $this->processPayment(
-                        $verified['flw_ref'],
-                        $verified['tx_ref'],
-                        $verified['amount'],
-                        'successful',
-                        $verified['created_at'],
-                        $verified['payment_type'],
-                        $detailsToken
-                    );
-                }
-            }
-        }
+    //     return response()->json(['message' => 'Webhook received'], 200);
+    // }
 
-        return response()->json(['message' => 'Webhook received'], 200);
-    }
 
     
     public function validatePayment(Request $request){

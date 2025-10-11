@@ -62,14 +62,21 @@ class ContestantController extends Controller
             ]);
 
             // Step 5: Update cache
-            $cachedContestants = Cache::get('allContestants');
-            if ($cachedContestants) {
-                array_unshift($cachedContestants, $contestant->toArray());
-                Cache::put('allContestants', $cachedContestants, now()->addWeek(1));
-            } else {
-                $allContestants = Contestant::orderBy('created_at', 'desc')->get()->toArray();
-                Cache::put('allContestants', $allContestants, now()->addWeek(1));
-            }
+ $cachedContestants = Cache::get('allContestants');
+
+if ($cachedContestants) {
+    // Convert collection to array if necessary
+    if ($cachedContestants instanceof \Illuminate\Support\Collection) {
+        $cachedContestants = $cachedContestants->toArray();
+    }
+
+    array_unshift($cachedContestants, $contestant->toArray());
+    Cache::put('allContestants', $cachedContestants, now()->addWeek(1));
+} else {
+    $allContestants = Contestant::orderBy('created_at', 'desc')->get()->toArray();
+    Cache::put('allContestants', $allContestants, now()->addWeek(1));
+}
+
 
             DB::commit(); // Everything succeeded
 
@@ -88,32 +95,78 @@ class ContestantController extends Controller
         }
     }
 
-    public function getAllContestants()
-    {
-        try {
-            // Check if contestants are already cached
-            $contestants = Cache::get('allContestants');
 
-            // If not cached, fetch from DB and cache for 1 week
-            if (!$contestants) {
-                $contestants = Contestant::orderBy('created_at', 'desc')->get();
-                Cache::put('allContestants', $contestants, now()->addWeek(1));
-            }
 
-            return response()->json([
-                'message' => 'All contestants fetched successfully.',
-                'code' => 'success',
-                'data' => $contestants
-            ]);
 
-        } catch (Exception $e) {
-            return response()->json([
-                'message' => 'Error fetching contestants.',
-                'code' => 'error',
-                'reason' => $e->getMessage(),
-            ]);
+
+
+
+    // public function getAllContestants()
+    // {
+    //     try {
+    //         // Check if contestants are already cached
+    //         $contestants = Cache::get('allContestants');
+    //         return $contestants;
+
+    //         // If not cached, fetch from DB and cache for 1 week
+    //         // if (!$contestants) {
+    //         //     $contestants = Contestant::orderBy('created_at', 'desc')->get();
+    //         //     Cache::put('allContestants', $contestants, now()->addWeek(1));
+                
+    //         // }
+
+    //         if (!$contestants) {
+    //             // Fetch all contestants with total votes
+    //             $contestants = Contestant::withSum('votes', 'votes_allocated')
+    //                 ->orderBy('created_at', 'desc')
+    //                 ->get();
+
+    //             Cache::put('allContestants', $contestants, now()->addWeek(1));
+    //         }
+
+    //         return response()->json([
+    //             'message' => 'All contestants fetched successfully.',
+    //             'code' => 'success',
+    //             'data' => $contestants
+    //         ]);
+
+    //     } catch (Exception $e) {
+    //         return response()->json([
+    //             'message' => 'Error fetching contestants.',
+    //             'code' => 'error',
+    //             'reason' => $e->getMessage(),
+    //         ]);
+    //     }
+    // }
+
+public function getAllContestants()
+{
+    try {
+        $cacheKey = 'allContestants';
+        $contestants = Cache::get($cacheKey);
+
+        if (!$contestants) {
+            $contestants = Contestant::withSum('votes as total_votes', 'votes_allocated')
+                ->orderBy('created_at', 'desc')
+                ->get();
+            Cache::put($cacheKey, $contestants->toArray(), now()->addWeek(1));
         }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Contestants fetched successfully.',
+            'data' => $contestants
+        ]);
+    } catch (Exception $e) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Failed to fetch contestants.',
+            'reason' => $e->getMessage(),
+        ]);
     }
+}
+
+
 
 
     public static function uploadToCloudinary($file)
