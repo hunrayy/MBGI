@@ -19,6 +19,7 @@
   transition: transform 0.4s ease, box-shadow 0.4s ease;
   box-sizing: border-box;
   box-shadow: 0px 0px 2px 0px rgb(128, 128, 128);
+  position: relative;
 }
 
 .contestant-card:hover {
@@ -48,6 +49,24 @@
 
 .contestant-card:hover .contestant-image {
   transform: scale(1.1);
+}
+
+.landing-page-crown-wrapper{
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  font-weight: bold;
+  background-color: gold;
+  background-color: #e4b621;
+  color: black;
+  width: fit-content;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 7px 14px;
+  border-radius: 20px;
+  font-size: 18px;
 }
 
 /* DETAILS */
@@ -90,8 +109,9 @@
 /* Glowing Vote Button */
 .vote-btn {
   background: linear-gradient(90deg, #D4AF37, #C0A062);
+  background: #e4b621;
   border: none;
-  color: #fff;
+  color: black;
   padding: 25px 30px;
   font-size: 1rem;
   font-weight: 600;

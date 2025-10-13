@@ -63,21 +63,23 @@ public function generateAccountNumber(Request $request)
                 'amount' => $amountInKobo,
                 'email' => $voterEmail,
                 'reference' => $reference,
-                'channels' => ['bank_transfer'], // 👈 This makes Paystack return a temp bank account
+                // 'channels' => ['bank_transfer'], // 👈 This makes Paystack return a temp bank account
                 'metadata' => $meta,
                 // ❌ No 'amount' key since user decides how much to pay
+                'callback_url' => env('FRONTEND_URL') . "/verify-payment"
             ]);
         $resData = $response->json();
 
         // 4️⃣ Handle API errors
-        if (!$response->successful() || !$resData['status']) {
-        return $resData;
+        if (!$response->successful() || empty($resData['status'])) {
             Log::error('Paystack Error', ['response' => $resData]);
             return response()->json([
                 'code' => 'error',
                 'message' => $resData['message'] ?? 'Failed to initialize transfer',
+                'details' => $resData,
             ]);
         }
+
 
         $data = $resData['data'];
 
@@ -98,11 +100,26 @@ public function generateAccountNumber(Request $request)
         ]);
 
     } catch (\Exception $e) {
+                // 6️⃣ Handle cURL timeout or other exceptions
+        if (str_contains($e->getMessage(), 'cURL error 28')) {
+            Log::channel('paystack')->warning('Paystack timeout', [
+                'email' => $voterEmail,
+                'reference' => $reference,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'code' => 'error',
+                'message' => 'Network timeout while contacting Paystack. Please check your internet and try again.',
+                'hint' => 'If this keeps happening, the issue may be from Paystack’s servers.',
+            ]); // Gateway Timeout
+        }
+
         Log::error('generateAccountNumber Error', ['error' => $e->getMessage()]);
         return response()->json([
             'code' => 'error',
-            'message' => 'Server error generating bank transfer account',
-        ], 500);
+            'message' => 'Unable to reach Paystack right now. Please try again later.',
+        ]);
     }
 }
 
@@ -118,7 +135,7 @@ public function paystackPaymentWebhook(Request $request)
 
     if ($signature !== $computedSignature) {
         Log::warning('Paystack webhook verification failed.', ['request' => $request->all()]);
-        return response()->json(['status' => 'error', 'message' => 'Invalid signature'], 401);
+        return response()->json(['status' => 'error', 'message' => 'Invalid signature']);
     }
 
     // 2️⃣ Get the webhook payload
@@ -133,6 +150,14 @@ public function paystackPaymentWebhook(Request $request)
         $status = $data['status'] ?? null;
 
         if ($status === 'success' || $status === 'successful') {
+            // ✅ Prevent duplicate processing
+            $reference = $data['reference'] ?? null;
+            if (Vote::where('tx_ref', $reference)->exists()) {
+                Log::info('Duplicate webhook ignored — already processed', ['reference' => $reference]);
+                return response()->json(['status' => 'success', 'message' => 'Transaction already processed']);
+            }
+
+
             // Convert paid_at to MySQL datetime
             $paymentTime = isset($data['paid_at']) ? Carbon::parse($data['paid_at'])->format('Y-m-d H:i:s') : now();
 
@@ -150,7 +175,7 @@ public function paystackPaymentWebhook(Request $request)
 
             $amount    = $data['amount'] ?? 0; // in Kobo
             $currency  = $data['currency'] ?? null;
-            $reference = $data['reference'] ?? null;
+            // $reference = $data['reference'] ?? null;
             $channel   = $data['channel'] ?? null;
 
             // Extract contestant info from metadata.referrer
@@ -160,6 +185,7 @@ public function paystackPaymentWebhook(Request $request)
 
             preg_match('/vote-for\/([^\/]+)\//', $referrer, $nameMatch);
             $contestantName = $nameMatch[1] ?? 'Unknown';
+            
 
             // Call processVote
             return $this->processVote(
@@ -175,13 +201,156 @@ public function paystackPaymentWebhook(Request $request)
                 $voterFullname,
                 $voterEmail,
                 $contestantName,
-                $contestantNumber
+                $contestantNumber,
+                $frontendRequested = false
             );
         }
     }
 
     return response()->json(['status' => 'ignored', 'message' => 'Event ignored']);
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+public function verifyPayment(Request $request)
+{
+    $validated = $request->validate([
+        'reference' => 'required|string',
+    ]);
+
+    $reference = $validated['reference'];
+    $cacheKey = "frontend_request_{$reference}";
+
+    try {
+        // 1️⃣ Check cache first
+        if (Cache::has($cacheKey)) {
+            $firstFrontendRequest = false; // already requested
+        } else {
+            // 2️⃣ Not in cache → check database
+            $vote = Vote::where('tx_ref', $reference)
+                        ->orWhere('flw_ref', $reference)
+                        ->first();
+
+            $firstFrontendRequest = !$vote || !$vote->frontend_requested;
+
+            // 3️⃣ Save result to cache (long-lived, e.g., 7 days)
+            Cache::put($cacheKey, true, now()->addDay(7));
+        }
+
+        // 4️⃣ If vote exists in DB
+        if (!isset($vote)) {
+            $vote = Vote::where('tx_ref', $reference)
+                        ->orWhere('flw_ref', $reference)
+                        ->first();
+        }
+
+        if ($vote) {
+            if ($firstFrontendRequest) {
+                // First frontend request → mark DB and show success
+                $vote->frontend_requested = true;
+                $vote->save();
+
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Transaction successful.',
+                    'data' => [
+                        'votes_awarded' => $vote->votes_allocated,
+                        'contestant_name' => $vote->contestant_name,
+                        'contestant_number' => $vote->contestant_number,
+                    ]
+                ]);
+            }
+
+            // Subsequent frontend requests → already processed
+            return response()->json([
+                'status' => 'already-processed',
+                'message' => 'Transaction already processed.',
+            ]);
+        }
+
+        // 5️⃣ Vote doesn't exist → verify with Paystack
+        $paystackSecret = env('PAYSTACK_SECRET_KEY');
+        $verifyResponse = Http::withToken($paystackSecret)
+            ->get("https://api.paystack.co/transaction/verify/{$reference}");
+
+        $verifyData = $verifyResponse->json();
+
+        if (!$verifyResponse->successful() || empty($verifyData['status'])) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Invalid payment reference.',
+            ]);
+        }
+
+        $data = $verifyData['data'];
+
+        if ($data && ($data['status'] === 'success' || $data['status'] === 'successful')) {
+
+            $metadata = $data['metadata'] ?? [];
+            $contestantName = $metadata['contestantName'] ?? null;
+            $contestantNumber = $metadata['contestantNumber'] ?? null;
+            $voterFullname = $metadata['voterFullname'] ?? null;
+            $voterEmail = $metadata['voterEmail'] ?? null;
+
+            $accountNumber = $data['authorization']['account_number'] ?? null;
+            $accountName   = $data['authorization']['account_name'] ?? null;
+            $bankName      = $data['authorization']['bank'] ?? null;
+
+            $amount    = $data['amount'];
+            $currency  = $data['currency'] ?? 'NGN';
+            $status    = $data['status'];
+            $paymentTime = isset($data['paid_at']) ? Carbon::parse($data['paid_at'])->format('Y-m-d H:i:s') : now();
+
+            // processVote should also mark frontend_requested = true
+            return $this->processVote(
+                $accountNumber,
+                $bankName,
+                $accountName,
+                $amount,
+                $currency,
+                $status,
+                $reference,
+                $reference,
+                $paymentTime,
+                $voterFullname,
+                $voterEmail,
+                $contestantName,
+                $contestantNumber,
+                $frontendRequested = true
+            );
+        }
+
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Transaction not successful.',
+        ]);
+
+    } catch (\Exception $e) {
+        Log::error('verifyPayment Exception', [
+            'reference' => $reference,
+            'error' => $e->getMessage(),
+        ]);
+
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Verification failed. Please try again later.',
+        ]);
+    }
+}
+
+
+
+
 
 public function processVote(
     $accountNumber,
@@ -196,7 +365,8 @@ public function processVote(
     $voterFullname,
     $voterEmail,
     $contestantName,
-    $contestantNumber
+    $contestantNumber,
+    $frontendRequested
 )
 {
     // 1️⃣ Convert Kobo → Naira
@@ -223,6 +393,7 @@ public function processVote(
         'voter_email'       => $voterEmail,
         'contestant_name'   => $contestantName,
         'contestant_number' => $contestantNumber,
+        'frontend_requested'=> $frontendRequested,
         'votes_allocated'   => $votes,
         'created_at'        => now(),
         'updated_at'        => now(),
@@ -231,12 +402,48 @@ public function processVote(
     Cache::forget('allContestants');
 
 
+
+    // $cacheKey = 'allContestants';
+    // $lock = Cache::lock('allContestants-lock', 10); // 10 seconds
+
+    // $currentVotes = $votesAwarded;
+
+    // if ($lock->get()) {
+    //     try {
+    //         $contestants = Cache::get($cacheKey);
+
+    //         if ($contestants) {
+    //             foreach ($contestants as &$contestant) {
+    //                 if ($contestant['id'] == $contestantId) {
+    //                     $contestant['total_votes'] += $votesAwarded;
+    //                     $currentVotes = $contestant['total_votes'];
+    //                     break;
+    //                 }
+    //             }
+    //             Cache::put($cacheKey, $contestants, now()->addWeek(1));
+    //         }
+    //     } finally {
+    //         $lock->release();
+    //     }
+    // }
+
+    // return response()->json([
+    //     'status' => 'success',
+    //     'message' => 'Vote counted',
+    //     'votes_awarded' => $votesAwarded,
+    //     'current_votes' => $currentVotes,
+    // ]);
+
+
     return response()->json([
         'status' => 'success',
         'message' => 'Transaction processed successfully.',
         'votes_awarded' => $votes,
     ]);
 }
+
+
+
 
 
 
@@ -454,7 +661,7 @@ public function processVote(
 
     //     if ($signature !== $secret) {
     //         Log::warning('Flutterwave webhook verification failed.');
-    //         return response()->json(['status' => 'error', 'message' => 'Invalid signature'], 401);
+    //         return response()->json(['status' => 'error', 'message' => 'Invalid signature']);
     //     }
 
     //     $payload = $request->all();
@@ -638,7 +845,7 @@ public function processVote(
     //     $signature = $request->header('verif-hash');
     //     if (!$signature || $signature !== env('FLW_SECRET_HASH')) {
     //         Log::warning('Invalid webhook signature');
-    //         return response()->json(['message' => 'Invalid signature'], 403);
+    //         return response()->json(['message' => 'Invalid signature']);
     //     }
 
     //     $payload = $request->all();

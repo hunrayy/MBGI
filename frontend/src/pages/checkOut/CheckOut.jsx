@@ -14,7 +14,7 @@ import { calculateTotal } from "../cart/CartTotal";
 import CartTotal from "../cart/CartTotal";
 import { useFlutterwave, FlutterWaveButton, closePaymentModal } from 'flutterwave-react-v3';
 import logo from '../../../public/beautybykiara_logo.png'
-import PaymentSuccessModal from "../../components/paymentSucessModal/PaymentSuccessModal";
+import PaymentSuccessModal from "../PaymentVerification/PaymentVerification";
 const CheckOut = () => {
   const use_auth = useAuth()
   const navigate = useNavigate()

@@ -35,6 +35,8 @@ Schema::create('votes', function (Blueprint $table) {
             
             // Votes allocated based on transfer
             $table->unsignedSmallInteger('votes_allocated')->default(0);
+
+            $table->boolean('frontend_requested')->default(false);
             
             // Index for faster leaderboard queries
             $table->index(['contestant_number', 'status']);

@@ -400,7 +400,6 @@ import image from "../../../public/testContestantImage.jpeg"
 import { useContestants } from "../../components/contestants/useContestants";
 import Loader from "../../components/loader/Loader";
 import axios from "axios";
-
 const VoteForCandidate = () => {
   const navigate = useNavigate()
   const { name, contestant_number } = useParams();
@@ -431,7 +430,6 @@ const VoteForCandidate = () => {
   const [userInfo, setUserInfo] = useState({ fullName: "", email: "", numberOfVotes: "" });
   const [accountDetails, setAccountDetails] = useState(null);
   const [generatingAccountNumberLoader, setGeneratingAccountNumberLoader] = useState(false)
-
   
   const handleChange = (e) => {
     setUserInfo({ ...userInfo, [e.target.name]: e.target.value });
@@ -449,101 +447,103 @@ const VoteForCandidate = () => {
     return regex.test(email);
   };
 
-// const handleNextStep = async () => {
-//   if (!validateFullName(userInfo.fullName)) {
-//     toast.error("Please enter a valid full name (first and last name).");
-//     return;
-//   }
-//   if (!validateEmail(userInfo.email)) {
-//     toast.error("Please enter a valid email address.");
-//     return;
-//   }
-//   if (!userInfo.numberOfVotes || userInfo.numberOfVotes <= 0) {
-//     toast.error("Please enter a valid number of votes.");
-//     return;
-//   }
-
-//   try {
-//     setGeneratingAccountNumberLoader(true);
-
-//     // 🔹 Step 1: Ask your backend to prepare a Paystack transaction
-//     const feedback = await axios.post(
-//       `${import.meta.env.VITE_BACKEND_URL}/generate-dynamic-account-number`,
-//       {
-//         fullName: userInfo.fullName,
-//         email: userInfo.email,
-//         numberOfVotes: userInfo.numberOfVotes,
-//         contestantName: candidate.fullname,
-//         contestantNumber: candidate.contestant_number,
-//       }
-//     );
-//     console.log(feedback)
-
-//     if (feedback.data.code !== "success") {
-//       toast.error("Could not initialize payment. Please try again.");
-//       return;
-//     }
-//         // ✅ Use PaystackPop.setup (not new PaystackPop)
-//     const handler = window.PaystackPop.setup({
-//       key: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
-//       email: userInfo.email,
-//       amount: feedback.data.data.amount,
-//       reference: feedback.data.data.reference,
-//       callback: function (response) {
-//         console.log("Payment complete:", response);
-//         axios
-//           .post(`${import.meta.env.VITE_BACKEND_URL}/verify-payment`, {
-//             reference: response.reference,
-//           })
-//           .then((verifyResponse) => {
-//             if (verifyResponse.data.status === "success") {
-//               toast.success("Vote payment successful!");
-//               setStep(2);
-//             } else {
-//               toast.error("Verification failed. Please contact support.");
-//             }
-//           })
-//           .catch(() => {
-//             toast.error("Error verifying payment.");
-//           });
-//       },
-//       onClose: function () {
-//         toast.info("Payment window closed.");
-//       },
-//     });
-
-//     handler.openIframe();
-
-//   } catch (err) {
-//     console.error(err);
-//     toast.error("An error occurred while initializing payment. Please try again.");
-//   } finally {
-//     setGeneratingAccountNumberLoader(false);
-//   }
-// };
-
-
-
-const handleNextStep = () => {
-  if (!validateFullName(userInfo.fullName) || !validateEmail(userInfo.email) || !userInfo.numberOfVotes) {
-    toast.error("All fields required");
+const handleNextStep = async () => {
+  if (!validateFullName(userInfo.fullName)) {
+    toast.error("Please enter a valid full name (first and last name).");
+    return;
+  }
+  if (!validateEmail(userInfo.email)) {
+    toast.error("Please enter a valid email address.");
+    return;
+  }
+  if (!userInfo.numberOfVotes || userInfo.numberOfVotes <= 0) {
+    toast.error("Please enter a valid number of votes.");
     return;
   }
 
-  navigate(`/vote-for/${name}/contestant-number/${contestant_number}/payment`, {
-    state: {
-      background: location.pathname, // optional: if you want to overlay modal
-      userInfo,
-      contestantName: candidate.fullname,
-    },
-  });
+  try {
+    setGeneratingAccountNumberLoader(true);
+
+    // 🔹 Step 1: Ask your backend to prepare a Paystack transaction
+    const feedback = await axios.post(
+      `${import.meta.env.VITE_BACKEND_URL}/generate-dynamic-account-number`,
+      {
+        fullName: userInfo.fullName,
+        email: userInfo.email,
+        numberOfVotes: userInfo.numberOfVotes,
+        contestantName: candidate.fullname,
+        contestantNumber: candidate.contestant_number,
+      }
+    );
+    console.log(feedback)
+
+    if (feedback.data.code !== "success") {
+      toast.error(feedback.data.message || "Could not initialize payment. Please try again.");
+      return;
+    }
+    // Redirect user to Paystack's payment page
+    window.location.href = feedback.data.data.authorization_url;
+        // ✅ Use PaystackPop.setup (not new PaystackPop)
+    // const handler = window.PaystackPop.setup({
+    //   key: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
+    //   email: userInfo.email,
+    //   amount: feedback.data.data.amount,
+    //   reference: feedback.data.data.reference,
+    //   callback: function (response) {
+    //     console.log("Payment complete:", response);
+    //     axios
+    //       .post(`${import.meta.env.VITE_BACKEND_URL}/verify-payment`, {
+    //         reference: response.reference,
+    //       })
+    //       .then((verifyResponse) => {
+    //         if (verifyResponse.data.status === "success") {
+    //           toast.success("Vote payment successful!");
+    //           setStep(2);
+    //         } else {
+    //           toast.error("Verification failed. Please contact support.");
+    //         }
+    //       })
+    //       .catch(() => {
+    //         toast.error("Error verifying payment.");
+    //       });
+    //   },
+    //   onClose: function () {
+    //     toast.info("Payment window closed.");
+    //   },
+    // });
+
+    // handler.openIframe();
+
+  } catch (err) {
+    console.error(err);
+    toast.error("Unable to reach Paystack at this time. Check your connection and try again.");
+  } finally {
+    setGeneratingAccountNumberLoader(false);
+  }
 };
 
+
+
+// const handleNextStep = () => {
+//   if (!validateFullName(userInfo.fullName) || !validateEmail(userInfo.email) || !userInfo.numberOfVotes) {
+//     toast.error("All fields required");
+//     return;
+//   }
+
+//   navigate(`/vote-for/${name}/contestant-number/${contestant_number}/payment`, {
+//     state: {
+//       background: location.pathname, // optional: if you want to overlay modal
+//       userInfo,
+//       contestantName: candidate.fullname,
+//     },
+//   });
+// };
+
   
-  const handleCopy = () => {
-    navigator.clipboard.writeText(accountDetails.accountNumber);
-    toast.success("Account number copied!");
-  };
+  // const handleCopy = () => {
+  //   navigator.clipboard.writeText(accountDetails.accountNumber);
+  //   toast.success("Account number copied!");
+  // };
   useEffect(() => {
     if (!isLoading && !candidate && !error) {
       navigate("/page-not-found", { replace: true });

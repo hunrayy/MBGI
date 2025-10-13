@@ -79,6 +79,8 @@ Route::get('/track-order', [OrderController::class, 'trackOrder']);
 Route::get('/get-all-contestants', [ContestantController::class, 'getAllContestants']);
 Route::post('generate-dynamic-account-number', [PaymentController::class, 'generateAccountNumber']);
 Route::post('/paystack/new-payment-webhook', [PaymentController::class, 'paystackPaymentWebhook']);
+Route::post('/verify-payment', [PaymentController::class, 'verifyPayment']);
+
 
 
 

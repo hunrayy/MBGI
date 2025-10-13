@@ -96,6 +96,38 @@ if ($cachedContestants) {
     }
 
 
+//     public function getAllContestants()
+// {
+//     try {
+//         $cacheKey = 'allContestants';
+
+//         $contestants = Cache::get($cacheKey);
+
+//         if (!$contestants) {
+//             $contestants = Contestant::withSum('votes as total_votes', 'votes_allocated')
+//                 ->orderBy('created_at', 'desc')
+//                 ->get()
+//                 ->toArray();
+
+//             Cache::put($cacheKey, $contestants, now()->addWeek(1));
+//         }
+
+//         return response()->json([
+//             'status' => 'success',
+//             'message' => 'Contestants fetched successfully.',
+//             'data' => $contestants
+//         ]);
+
+//     } catch (Exception $e) {
+//         return response()->json([
+//             'status' => 'error',
+//             'message' => 'Failed to fetch contestants.',
+//             'reason' => $e->getMessage(),
+//         ]);
+//     }
+// }
+
+
 
 
 
