@@ -76,6 +76,19 @@
   animation: popIn 0.3s ease-out;
 }
 
+.static-icon,
+.already-processed-icon,
+.error-icon,
+.pending-icon {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 20px;
+  max-width: 100%;
+  overflow: hidden;
+  animation: none; /* no glowing animation */
+}
+
+
 @keyframes popIn {
   0% {
     transform: scale(0.4);

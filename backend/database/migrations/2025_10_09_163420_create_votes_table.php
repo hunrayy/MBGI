@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-Schema::create('votes', function (Blueprint $table) {
+        Schema::create('votes', function (Blueprint $table) {
             $table->id();
             
             // Voter details
@@ -19,9 +19,11 @@ Schema::create('votes', function (Blueprint $table) {
             $table->string('voter_email');
             
             // Contestant details
+            $table->uuid('contestant_id')->nullable(); // use UUID since contestants.id is UUID
+            $table->string('contestant_email');
             $table->string('contestant_name');
-            $table->string('contestant_number'); // add this column
-            $table->string('status');            // add this column
+            $table->string('contestant_number');
+            $table->string('status');
             
             // Payment details
             $table->string('account_number')->nullable();
@@ -40,13 +42,14 @@ Schema::create('votes', function (Blueprint $table) {
             
             // Index for faster leaderboard queries
             $table->index(['contestant_number', 'status']);
-            $table->foreign('contestant_number')
-                ->references('contestant_number')
-                ->on('contestants')
-            ->cascadeOnDelete();
 
-                    
-            $table->timestamps(); // created_at & updated_at
+            // ✅ Proper cascade relationship
+            $table->foreign('contestant_id')
+                ->references('id')
+                ->on('contestants')
+                ->nullOnDelete();
+
+            $table->timestamps();
         });
     }
 

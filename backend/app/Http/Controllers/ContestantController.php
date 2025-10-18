@@ -18,14 +18,14 @@ class ContestantController extends Controller
         $validator = Validator::make($request->all(), [
             'image' => 'required|image|mimes:jpeg,png,jpg,gif',
             'fullname' => 'required|string|max:255',
-            'bio' => 'nullable|string|max:2000',
+            'email' => 'required|email|max:255|unique:contestants,email',
             'contestantNumber' => 'required|integer|min:1|unique:contestants,contestant_number',
         ]);
 
 
         if ($validator->fails()) {
             return response()->json([
-                'message' => 'All Fields Required',
+                'message' => 'All Field Required',
                 'code' => 'error',
                 'errors' => $validator->errors()
             ]);
@@ -57,7 +57,7 @@ class ContestantController extends Controller
             $contestant = Contestant::create([
                 'fullname' => $request->input('fullname'),
                 'image' => $uploadedImage,
-                'bio' => $request->input('bio'),
+                'email' => $request->input('email'),
                 'contestant_number' => $request->input('contestantNumber'),
             ]);
 

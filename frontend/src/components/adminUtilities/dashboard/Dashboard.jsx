@@ -4,11 +4,13 @@
 
 import "./dashboard.css";
 import { useAuth } from "../../AuthContext/AuthContext"
+import { useContestants } from "../../contestants/useContestants";
 
 
 const Dashboard = () => {
     const use_auth = useAuth()
     const adminDetails = use_auth.user.user || {};
+  const { data: contestants, isLoading, error } = useContestants();
 
   return (
     <div className="dashboard-container">
@@ -30,7 +32,7 @@ const Dashboard = () => {
             <div className="stat-card">
               <i className="bi bi-people-fill stat-icon"></i>
               <div>
-                <h4>30</h4>
+                <h4>{contestants.length}</h4>
                 <p>Contestants</p>
               </div>
             </div>

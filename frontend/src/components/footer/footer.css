@@ -27,6 +27,7 @@
   .footer .container {
     display: flex;
     justify-content: space-between;
+      text-align: center;
     flex-wrap: wrap;
     max-width: 1200px;
     margin: 0 auto;
@@ -84,7 +85,7 @@
   }
   
   .social-icon:hover {
-    color: #f8a5c2;
+    color: #b8860b;
     transition: color .5s;
   }
   
@@ -94,7 +95,7 @@
     /* background-color: #111; */
     color: #999;
     font-size: 0.85rem;
-    margin-top: 20px;
+    /* margin-top: 20px; */
   } 
   
   .footer-bottom p {
@@ -108,7 +109,11 @@
   }
   
   .footer-bottom a:hover {
-    color: #f672a7;
+    color: #d3a107;
+    transition: 1s;
+
+
+    
   }
   
   /* Responsive */
@@ -128,3 +133,65 @@
     }
   }
   
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+.main-slider-container{
+  overflow: hidden;
+  width: 100%;
+  /* height: 300px; */
+  /* display: flex; */
+  align-items: center;
+  background-color: black;
+  color: white;
+  position: relative;
+  text-align: center;
+  /* z-index: 9; */
+
+}
+
+.slider-container {
+
+  display: flex;
+  align-items: center;
+  /* background-color: red; */
+
+}
+
+.slider-track {
+  display: flex;
+  /* gap: 20px; */
+  animation: scroll 12s linear infinite;
+}
+
+.card {
+  width: 250px;
+  height: auto;
+}
+
+/* Smooth infinite scroll */
+@keyframes scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-33.333%); /* scrolls by 1/3 of track */
+  }
+}

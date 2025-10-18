@@ -91,7 +91,8 @@ if (user.is_user_logged) {
           {/* Google OAuth Button */}
           <div className="d-grid">
             <button
-              className="btn btn-lg mt-4 google-oauth-btn"
+              // className="btn btn-lg mt-4 admin-google-oauth-btn"
+              className="mt-4 admin-google-oauth-btn"
               type="button"
               onClick={handleGoogleLogin} // your OAuth handler
             >

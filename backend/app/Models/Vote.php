@@ -15,6 +15,8 @@ class Vote extends Model
         'voter_fullname',
         'voter_email',
         'contestant_name',
+        'contestant_id',
+        'contestant_email',
         'contestant_number',
         'account_number',
         'account_name',
@@ -26,6 +28,7 @@ class Vote extends Model
         'tx_ref',
         'payment_time',
         'votes_allocated',
+        'frontend_requested'
     ];
 
     protected $casts = [

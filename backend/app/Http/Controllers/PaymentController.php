@@ -17,6 +17,8 @@ use App\Models\Transaction;
 use App\Models\UnprocessedPayments;
 use App\Models\FailedTransactions;
 use App\Models\Vote;
+use App\Mail\VoteConfirmationMail;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Cache;
 
 
@@ -32,13 +34,17 @@ public function generateAccountNumber(Request $request)
         'fullName' => 'required|string',
         'email' => 'required|email',
         'numberOfVotes' => 'required|integer|min:1',
+        'contestantId' => 'required|uuid|exists:contestants,id',
         'contestantName' => 'required|string',
         'contestantNumber' => 'required|string',
+        'contestantEmail'  => 'required|email',
     ]);
 
     $voterFullname = $validated['fullName'];
     $voterEmail = $validated['email'];
     $numberOfVotes = $validated['numberOfVotes'];
+    $contestantId = $validated['contestantId'];
+    $contestantEmail = $validated['contestantEmail'];
     $contestantName = $validated['contestantName'];
     $contestantNumber = $validated['contestantNumber'];
 
@@ -49,6 +55,8 @@ public function generateAccountNumber(Request $request)
     $meta = [
         'voterFullname' => $voterFullname,
         'voterEmail' => $voterEmail,
+        'contestantId' => $contestantId,
+        'contestantEmail' => $contestantEmail,
         'contestantName' => $contestantName,
         'contestantNumber' => $contestantNumber,
     ];
@@ -178,14 +186,20 @@ public function paystackPaymentWebhook(Request $request)
             // $reference = $data['reference'] ?? null;
             $channel   = $data['channel'] ?? null;
 
-            // Extract contestant info from metadata.referrer
-            $referrer = $data['metadata']['referrer'] ?? '';
-            preg_match('/contestant-number\/(\d+)/', $referrer, $matches);
-            $contestantNumber = $matches[1] ?? 0;
+            // Extract contestant info from metadata
+            $metadata = $data['metadata'] ?? [];
 
-            preg_match('/vote-for\/([^\/]+)\//', $referrer, $nameMatch);
-            $contestantName = $nameMatch[1] ?? 'Unknown';
-            
+            if (is_string($metadata)) {
+                $metadata = json_decode($metadata, true);
+            }
+
+            $contestantId = $metadata['contestantId'];
+            $contestantEmail   = $metadata['contestantEmail'];
+            $contestantNumber = $metadata['contestantNumber'];
+            $contestantName   = $metadata['contestantName'];
+            $voterFullname    = $metadata['voterFullname'] ?? $voterFullname;
+            $voterEmail       = $metadata['voterEmail'] ?? $voterEmail;
+
 
             // Call processVote
             return $this->processVote(
@@ -202,7 +216,10 @@ public function paystackPaymentWebhook(Request $request)
                 $voterEmail,
                 $contestantName,
                 $contestantNumber,
-                $frontendRequested = false
+                $frontendRequested = false,
+                $contestantId,
+                $contestantEmail
+                
             );
         }
     }
@@ -233,19 +250,39 @@ public function verifyPayment(Request $request)
 
     try {
         // 1️⃣ Check cache first
-        if (Cache::has($cacheKey)) {
-            $firstFrontendRequest = false; // already requested
-        } else {
-            // 2️⃣ Not in cache → check database
+        // if (Cache::has($cacheKey)) {
+        //     $firstFrontendRequest = false; // already requested
+        // } else {
+        //     // 2️⃣ Not in cache → check database
+        //     $vote = Vote::where('tx_ref', $reference)
+        //                 ->orWhere('flw_ref', $reference)
+        //                 ->first();
+
+        //     $firstFrontendRequest = !$vote || !$vote->frontend_requested;
+
+        //     // 3️⃣ Save result to cache (long-lived, e.g., 7 days)
+        //     Cache::put($cacheKey, true, now()->addDay(7));
+        // }
+
+
+
+
+        // Attempt to atomically mark this reference as seen
+        $firstFrontendRequest = Cache::add($cacheKey, true, now()->addDays(7));
+
+        if ($firstFrontendRequest) {
+            // Not previously cached → need to check DB to confirm
             $vote = Vote::where('tx_ref', $reference)
                         ->orWhere('flw_ref', $reference)
                         ->first();
 
+            // Update our decision based on database flag
             $firstFrontendRequest = !$vote || !$vote->frontend_requested;
-
-            // 3️⃣ Save result to cache (long-lived, e.g., 7 days)
-            Cache::put($cacheKey, true, now()->addDay(7));
+        } else {
+            // Cached → not first frontend request
+            $firstFrontendRequest = false;
         }
+
 
         // 4️⃣ If vote exists in DB
         if (!isset($vote)) {
@@ -297,6 +334,8 @@ public function verifyPayment(Request $request)
         if ($data && ($data['status'] === 'success' || $data['status'] === 'successful')) {
 
             $metadata = $data['metadata'] ?? [];
+            $contestantId = $metadata['contestantId'] ?? null;
+            $contestantEmail = $metadata['contestantEmail'] ?? null;
             $contestantName = $metadata['contestantName'] ?? null;
             $contestantNumber = $metadata['contestantNumber'] ?? null;
             $voterFullname = $metadata['voterFullname'] ?? null;
@@ -326,7 +365,9 @@ public function verifyPayment(Request $request)
                 $voterEmail,
                 $contestantName,
                 $contestantNumber,
-                $frontendRequested = true
+                $frontendRequested = true,
+                $contestantId,
+                $contestantEmail
             );
         }
 
@@ -366,82 +407,130 @@ public function processVote(
     $voterEmail,
     $contestantName,
     $contestantNumber,
-    $frontendRequested
+    $frontendRequested,
+    $contestantId,
+    $contestantEmail
 )
 {
-    // 1️⃣ Convert Kobo → Naira
-    $amountInNaira = (int)$amount / 100;
+      try {
+        // 1️⃣ Convert Kobo → Naira
+        $amountInNaira = (int)$amount / 100;
 
-    // 2️⃣ Define voting price per vote in Naira
-    $votePrice = 100;
+        // 2️⃣ Define voting price per vote in Naira
+        $votePrice = 100;
 
-    // 3️⃣ Calculate number of votes
-    $votes = intdiv((int)$amountInNaira, $votePrice);
+        // 3️⃣ Calculate number of votes
+        $votes = intdiv((int)$amountInNaira, $votePrice);
 
-    // 4️⃣ Insert transaction into DB
-    $transaction = Vote::create([
-        'account_number'    => $accountNumber,
-        'bank_name'         => $bankName,
-        'account_name'      => $accountName,
-        'amount'            => $amount, // store original Kobo amount
-        'currency'          => $currency,
-        'status'            => $status,
-        'flw_ref'           => $flwRef,
-        'tx_ref'            => $txRef,
-        'payment_time'      => $paymentTime,
-        'voter_fullname'    => $voterFullname,
-        'voter_email'       => $voterEmail,
-        'contestant_name'   => $contestantName,
-        'contestant_number' => $contestantNumber,
-        'frontend_requested'=> $frontendRequested,
-        'votes_allocated'   => $votes,
-        'created_at'        => now(),
-        'updated_at'        => now(),
-    ]);
+        // 4️⃣ Wrap DB insert and cache forget in a transaction
+        $transaction = DB::transaction(function () use (
+            $accountNumber,
+            $bankName,
+            $accountName,
+            $amount,
+            $currency,
+            $status,
+            $flwRef,
+            $txRef,
+            $paymentTime,
+            $voterFullname,
+            $voterEmail,
+            $contestantName,
+            $contestantNumber,
+            $frontendRequested,
+            $contestantId,
+            $contestantEmail,
+            $votes
+        ) {
+            // Insert vote
+            $vote = Vote::create([
+                'account_number'    => $accountNumber,
+                'bank_name'         => $bankName,
+                'account_name'      => $accountName,
+                'amount'            => $amount, // original Kobo
+                'currency'          => $currency,
+                'status'            => $status,
+                'flw_ref'           => $flwRef,
+                'tx_ref'            => $txRef,
+                'payment_time'      => $paymentTime,
+                'voter_fullname'    => $voterFullname,
+                'voter_email'       => $voterEmail,
+                'contestant_name'   => $contestantName,
+                'contestant_number' => $contestantNumber,
+                'contestant_id'     => $contestantId,
+                'contestant_email'  => $contestantEmail,
+                'frontend_requested'=> $frontendRequested,
+                'votes_allocated'   => $votes,
+                'created_at'        => now(),
+                'updated_at'        => now(),
+            ]);
 
-    Cache::forget('allContestants');
+            // Invalidate cache
+            Cache::forget('allContestants');
 
+            return $vote;
+        });
 
+        // 5️⃣ Queue emails after successful transaction
+        Mail::to($voterEmail)
+            ->queue(new VoteConfirmationMail($voterFullname, $votes, $contestantName, 'voter'));
 
-    // $cacheKey = 'allContestants';
-    // $lock = Cache::lock('allContestants-lock', 10); // 10 seconds
+        Mail::to($contestantEmail)
+            ->queue(new VoteConfirmationMail($voterFullname, $votes, $contestantName, 'contestant', $voterEmail));
 
-    // $currentVotes = $votesAwarded;
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Transaction processed successfully.',
+            'votes_awarded' => $votes,
+        ]);
 
-    // if ($lock->get()) {
-    //     try {
-    //         $contestants = Cache::get($cacheKey);
+    } catch (\Exception $e) {
+        // Log error for debugging
+        Log::error('processVote Error', [
+            'tx_ref' => $txRef,
+            'flw_ref' => $flwRef,
+            'error' => $e->getMessage()
+        ]);
 
-    //         if ($contestants) {
-    //             foreach ($contestants as &$contestant) {
-    //                 if ($contestant['id'] == $contestantId) {
-    //                     $contestant['total_votes'] += $votesAwarded;
-    //                     $currentVotes = $contestant['total_votes'];
-    //                     break;
-    //                 }
-    //             }
-    //             Cache::put($cacheKey, $contestants, now()->addWeek(1));
-    //         }
-    //     } finally {
-    //         $lock->release();
-    //     }
-    // }
-
-    // return response()->json([
-    //     'status' => 'success',
-    //     'message' => 'Vote counted',
-    //     'votes_awarded' => $votesAwarded,
-    //     'current_votes' => $currentVotes,
-    // ]);
-
-
-    return response()->json([
-        'status' => 'success',
-        'message' => 'Transaction processed successfully.',
-        'votes_awarded' => $votes,
-    ]);
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Unable to process transaction at this time. Please try again later.',
+        ]);
+    }
 }
 
+
+
+// $cacheKey = 'allContestants';
+// $lock = Cache::lock('allContestants-lock', 10); // 10 seconds
+
+// $currentVotes = $votesAwarded;
+
+// if ($lock->get()) {
+//     try {
+//         $contestants = Cache::get($cacheKey);
+
+//         if ($contestants) {
+//             foreach ($contestants as &$contestant) {
+//                 if ($contestant['id'] == $contestantId) {
+//                     $contestant['total_votes'] += $votesAwarded;
+//                     $currentVotes = $contestant['total_votes'];
+//                     break;
+//                 }
+//             }
+//             Cache::put($cacheKey, $contestants, now()->addWeek(1));
+//         }
+//     } finally {
+//         $lock->release();
+//     }
+// }
+
+// return response()->json([
+//     'status' => 'success',
+//     'message' => 'Vote counted',
+//     'votes_awarded' => $votesAwarded,
+//     'current_votes' => $currentVotes,
+// ]);
 
 
 

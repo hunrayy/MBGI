@@ -1,5 +1,5 @@
 .navbar-container { 
-  /* display: flex;  */
+  display: flex; 
   justify-content: space-between; 
   align-items: center; 
   padding: 12px 20px; 
@@ -12,3 +12,31 @@
   min-height: 70px; 
   border-bottom: 1px solid gray;
 } 
+
+
+.navbar-countdown div{
+  color: #aaa;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0px;
+}
+
+
+
+
+.expired {
+  color: #ff4d4f;           /* soft red for urgency */
+  font-weight: 700;         /* bold for emphasis */
+  font-size: 13px;
+  background-color: #fff0f0; /* subtle background contrast */
+  padding: 4px 8px;
+  border-radius: 6px;
+  display: inline-block;
+  animation: fadeIn 0.8s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}

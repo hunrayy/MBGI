@@ -15,7 +15,7 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->string('fullname');
             $table->string('contestant_number')->unique();
-            $table->text('bio')->nullable();
+            $table->string('email')->unique();
             $table->string('image')->nullable();
             $table->timestamps();
         });

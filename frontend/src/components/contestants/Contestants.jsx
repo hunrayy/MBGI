@@ -3,6 +3,7 @@ import './contestants.css'
 import { useNavigate } from 'react-router-dom';
 import image from "../../../public/testContestantImage.jpeg"
 import { useContestants } from './useContestants';
+import useCountdown from '../navbar/useCountdown';
 
 
 
@@ -10,6 +11,7 @@ import { useContestants } from './useContestants';
 const Contestants = ({ adminDashboard }) => {
   const navigate = useNavigate();
   const { data: contestants, isLoading, isError, error } = useContestants();
+  const timeLeft = useCountdown();
 
   if (isLoading) {
     return (
@@ -37,11 +39,18 @@ const Contestants = ({ adminDashboard }) => {
 
   if (isError) return <p className="alert alert-danger">Failed to load contestants</p>;
 
-  // Create a shallow copy, sort by votes descending, then name ascending
-  const sortedContestants = contestants.slice().sort((a, b) => {
+// Define contestants to exclude (as strings or numbers)
+// const excludedNumbers = ["1", "5", "7"];
+
+// Filter out excluded contestants, then sort
+const sortedContestants = contestants
+  // .filter(c => !excludedNumbers.includes(String(c.contestant_number)))
+  .slice()
+  .sort((a, b) => {
     if (b.total_votes !== a.total_votes) return b.total_votes - a.total_votes;
     return a.fullname.localeCompare(b.fullname, undefined, { sensitivity: "base" });
   });
+
 
   // Assign ranks considering ties
   let lastVotes = null;
@@ -101,7 +110,7 @@ const Contestants = ({ adminDashboard }) => {
                 </span>
               </div>
 
-              {!adminDashboard && (
+              {!adminDashboard && timeLeft && (
                 <button
                   className="vote-btn"
                   onClick={() => {

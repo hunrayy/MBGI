@@ -6,8 +6,19 @@ import axios from "axios";
  */
 const fetchContestants = async () => {
   const response = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/get-all-contestants`);
-  console.log(response)
-  return response.data.data;
+  // Get raw contestants
+  const contestants = response.data.data;
+
+  // Define contestant numbers to exclude (soft deleted)
+  // const excludedNumbers = ["1", "2", "7"];
+  const excludedNumbers = [];
+
+  // Filter out excluded contestants
+  const activeContestants = contestants.filter(
+    (c) => !excludedNumbers.includes(String(c.contestant_number))
+  );
+
+  return activeContestants;
 };
 
 /**
@@ -52,8 +63,6 @@ export const useContestants = () => {
 
 
 
-
-
 // import { useQuery } from "@tanstack/react-query";
 // import axios from "axios";
 
@@ -61,23 +70,27 @@ export const useContestants = () => {
 //  * Fetch all contestants from the backend API
 //  */
 // const fetchContestants = async () => {
-//   const response = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/get-all-contestants`); // 🔁 replace with your backend URL
+//   const response = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/get-all-contestants`);
 //   console.log(response)
 //   return response.data.data;
 // };
 
 // /**
 //  * Custom React Query hook for contestants
-//  * - Fetches all contestants
-//  * - Caches results for 1 day (24 hours)
 //  */
 // export const useContestants = () => {
-//   return useQuery({
+//   const query = useQuery({
 //     queryKey: ["contestants"],
 //     queryFn: fetchContestants,
-//     staleTime: 1000 * 60 * 60 * 24, // data stays fresh for 24 hours
-//     cacheTime: 1000 * 60 * 60 * 24, // cached data kept for 24 hours
+//     staleTime: 1000 * 60 * 60 * 24,
+//     cacheTime: 1000 * 60 * 60 * 24,
 //     refetchOnWindowFocus: false,
-//     retry: 2, // retry twice if request fails
+//     retry: 2,
 //   });
+
+//   // Expose refetch so other components can call it
+//   return {
+//     ...query,
+//     refetchContestants: query.refetch, // call this after successful payment
+//   };
 // };

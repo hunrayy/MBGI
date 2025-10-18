@@ -395,24 +395,25 @@ import "react-toastify/dist/ReactToastify.css";
 import Navbar from "../../components/navbar/Navbar";
 import Footer from "../../components/footer/Footer";
 import "./voteForCandidate.css";
-// import image from "../../../public/testContestantImage.jpeg"
 import image from "../../../public/testContestantImage.jpeg"
 import { useContestants } from "../../components/contestants/useContestants";
 import Loader from "../../components/loader/Loader";
 import axios from "axios";
+import useCountdown from "../../components/navbar/useCountdown";
+import { toastError, toastSuccess } from "../../components/toast/toast";
 const VoteForCandidate = () => {
   const navigate = useNavigate()
   const { name, contestant_number } = useParams();
   const { state } = useLocation()
   const { data: contestants, isLoading, error } = useContestants();
+  const timeLeft = useCountdown();
 
 
 
 
 
 
-  
-  console.log(contestants)
+  // console.log(contestants)
   
   const candidateFromState = state?.contestant
    const candidate = contestants?.find(
@@ -423,7 +424,7 @@ const VoteForCandidate = () => {
   const parsedName = name
     .replaceAll("-", " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
-    console.log(parsedName, contestant_number)
+    // console.log(parsedName, contestant_number)
 
   const [showModal, setShowModal] = useState(false);
   const [step, setStep] = useState(1); // 1 = user info, 2 = payment details
@@ -449,15 +450,15 @@ const VoteForCandidate = () => {
 
 const handleNextStep = async () => {
   if (!validateFullName(userInfo.fullName)) {
-    toast.error("Please enter a valid full name (first and last name).");
+    toastError("Enter a valid full name (first and last name).");
     return;
   }
   if (!validateEmail(userInfo.email)) {
-    toast.error("Please enter a valid email address.");
+    toastError("Enter a valid email address.");
     return;
   }
   if (!userInfo.numberOfVotes || userInfo.numberOfVotes <= 0) {
-    toast.error("Please enter a valid number of votes.");
+    toastError("Enter a valid number of votes.");
     return;
   }
 
@@ -471,14 +472,16 @@ const handleNextStep = async () => {
         fullName: userInfo.fullName,
         email: userInfo.email,
         numberOfVotes: userInfo.numberOfVotes,
+        contestantId: candidate.id,
         contestantName: candidate.fullname,
         contestantNumber: candidate.contestant_number,
+        contestantEmail: candidate.email,
       }
     );
     console.log(feedback)
 
     if (feedback.data.code !== "success") {
-      toast.error(feedback.data.message || "Could not initialize payment. Please try again.");
+      toastError(feedback.data.message || "Could not initialize payment. Please try again.");
       return;
     }
     // Redirect user to Paystack's payment page
@@ -516,7 +519,7 @@ const handleNextStep = async () => {
 
   } catch (err) {
     console.error(err);
-    toast.error("Unable to reach Paystack at this time. Check your connection and try again.");
+    toastError("Unable to reach Paystack at this time. Check your connection and try again.");
   } finally {
     setGeneratingAccountNumberLoader(false);
   }
@@ -553,7 +556,8 @@ const handleNextStep = async () => {
     if (isLoading) return;
   if (error) return <h1 className="alert alert-danger">Error loading contestants</h1>;
   // Guard against undefined candidate
-if (!candidate) return <h1>Candidate not found...</h1>;
+// if (!candidate) return <h1>Candidate not found...</h1>;
+if (!candidate) return ;
   return (
     <div className="vote-component-container">
       <Navbar />
@@ -564,7 +568,7 @@ if (!candidate) return <h1>Candidate not found...</h1>;
         <div className="candidate-image-section">
           <img
             src={candidate.image}
-            alt={candidate.name}
+            alt={candidate.fullname}
             className="candidate-image"
 
           />
@@ -586,15 +590,17 @@ if (!candidate) return <h1>Candidate not found...</h1>;
             </h2>
             <p className="vote-subtext">Each vote costs ₦100</p>
 
-            <button
-              className="cast-vote-btn"
-              onClick={() => {
-                setShowModal(true);
-                setStep(1);
-              }}
-            >
-              CAST YOUR VOTE
-            </button>
+            { timeLeft &&
+              <button
+                className="cast-vote-btn"
+                onClick={() => {
+                  setShowModal(true);
+                  setStep(1);
+                }}
+              >
+                CAST YOUR VOTE
+              </button>
+            }
           </div>
         </div>
       </div>
@@ -682,7 +688,7 @@ if (!candidate) return <h1>Candidate not found...</h1>;
                   onChange={handleChange}
                 />
                 <p className="email-note">
-                  Please input your valid email address as a receipt of your vote will be sent.
+                  Input <strong>your</strong> valid email address as a receipt of your vote will be sent.
                 </p>
 
                 <input
@@ -702,53 +708,6 @@ if (!candidate) return <h1>Candidate not found...</h1>;
               </div>
             )}
 
-
-
-
-
-
-
-
-
-
-
-                {/* PAYMENT MODAL */}
-
-
-
-
-
-
-            {/* Step 2: Payment Details */}
-            {step === 2 && accountDetails && (
-              <div className="payment-details">
-                <h2 style={{color: "white"}}>Bank Transfer Details</h2>
-                <p>Please make your payment using the account details below:</p>
-
-                <div className="account-details">
-                  <p>
-                    <strong>Bank:</strong> {accountDetails.bank}
-                  </p>
-                  <p>
-                    <strong>Account Name:</strong> {accountDetails.accountName}
-                  </p>
-                  <p>
-                    <strong>Account Number:</strong>{" "}
-                    <span className="account-number">
-                      {accountDetails.accountNumber}
-                    </span>
-                  </p>
-                  <button className="copy-btn" onClick={handleCopy}>
-                    Copy Account Number
-                  </button>
-                </div>
-
-                {/* <p className="modal-note">
-                  After making your transfer, please confirm your payment on
-                  this page.
-                </p> */}
-              </div>
-            )}
           </div>
         </div>
       {/* )} */}

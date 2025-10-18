@@ -21,6 +21,8 @@
   padding: 30px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   text-align: center;
+  /* background-color: red; */
+  margin-top: calc(30vh - 50%);
 }
 
 /* Logo margin */
@@ -29,7 +31,7 @@
 }
 
 /* Google OAuth Button */
-.google-oauth-btn {
+.admin-google-oauth-btn {
   background-color: #000;
   color: #fff;
   border: none;
@@ -45,12 +47,12 @@
   box-sizing: border-box;
 }
 
-.google-oauth-btn:hover {
+.admin-google-oauth-btn:hover {
   background-color: #222;
   color: white;
 }
 
-.google-oauth-btn img {
+.admin-google-oauth-btn img {
   width: 24px;
   height: 24px;
   background-color: white;
@@ -64,7 +66,7 @@
     padding: 20px 0;
   }
 
-  .google-oauth-btn {
+  .admin-google-oauth-btn {
     font-size: 16px;
     padding: 12px 14px;
   }

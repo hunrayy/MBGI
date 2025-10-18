@@ -107,29 +107,40 @@ const PaymentVerification = ({ isOpen = true }) => {
   return (
     <div className="payment-modal-backdrop active" ref={modalRef}>
       <div className="payment-modal">
-        <div className="success-icon">
+        {/* <div className="success-icon">
           {paymentStatus.status === 'success' ? (
-            <svg viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="10" />
-              <path d="M7 13l3 3 7-7" />
-            </svg>
-          ) : paymentStatus.status === 'already-processed' ? (
-            <svg viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="10" stroke="#999" fill="none" />
-              <path d="M12 6v6l4 2" stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          ) : paymentStatus.status === 'error' ? (
-            <svg viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="10" stroke="red" fill="none" />
-              <line x1="8" y1="8" x2="16" y2="16" stroke="red" />
-              <line x1="16" y1="8" x2="8" y2="16" stroke="red" />
-            </svg>
-          ) : (
-            <svg viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="10" fill="#ccc" />
-            </svg>
-          )}
-        </div>
+            ) : paymentStatus.status === 'already-processed' ? (
+              ) : paymentStatus.status === 'error' ? (
+                ) : (
+                   */}
+
+        <div className={
+  paymentStatus.status === 'success' ? 'success-icon' : 'static-icon'
+}>
+  {paymentStatus.status === 'success' ? (
+                  <svg viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M7 13l3 3 7-7" />
+                  </svg>
+  ) : paymentStatus.status === 'already-processed' ? (
+                <svg className="already-processed-icon" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" stroke="#999" fill="none" />
+                <path d="M12 6v6l4 2" stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+  ) : paymentStatus.status === 'error' ? (
+                  <svg className="error-icon" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10" stroke="red" fill="none" />
+                  <line x1="8" y1="8" x2="16" y2="16" stroke="red" />
+                  <line x1="16" y1="8" x2="8" y2="16" stroke="red" />
+                  </svg>
+  ) : (
+    <svg className="pending-icon" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10" fill="#ccc" />
+                  </svg>
+              
+  )}
+</div>
+
 
         <h2>{renderTitle()}</h2>
         {/* <p className="payment-message">
@@ -137,7 +148,7 @@ const PaymentVerification = ({ isOpen = true }) => {
         </p> */}
 
         {paymentStatus.status === 'success' && (
-          <p> Thanks for voting! A confirmation of your vote has been sent to your email. Your support brings your favorite contestant one step closer to victory. </p>
+          <p> Thanks for voting! A receipt of your vote has been sent to your email. Your support brings your favorite contestant one step closer to victory. </p>
         )}
 
         {/* <p className="payment-footer">

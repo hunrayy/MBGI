@@ -37,6 +37,7 @@
   overflow: hidden;
   position: relative;
   background-color: #000;
+  min-height: 380px;
 }
 
 .contestant-image {
@@ -57,8 +58,8 @@
   align-items: center;
   gap: 10px;
   font-weight: bold;
-  background-color: gold;
   background-color: #e4b621;
+  /* background-color: #b8860b; */
   color: black;
   width: fit-content;
   position: absolute;

@@ -18,6 +18,7 @@ class Contestant extends Model
     protected $fillable = [
         'fullname',           // contestant name
         'contestant_number',  // unique number
+        'email',
         'image',              // image URL/path
     ];
 

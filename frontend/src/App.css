@@ -5,7 +5,7 @@
   padding: 0;
   box-sizing: border-box;
   --bodyColor: #f9eef1;
-  --marginAboveTop: 100px;
+  --marginAboveTop: 80px;
   --lightColorSkeletonPlaceholder: #c7bec1;
   /* font-family: 'EB Garamond', serif; */
   font-family: 'Crimson Text', serif;
@@ -68,7 +68,7 @@ html, body {
 
 @media (max-width: 767px) {
     *{
-        --marginAboveTop: 60px;
+        --marginAboveTop: 80px;
         
     }
 }
